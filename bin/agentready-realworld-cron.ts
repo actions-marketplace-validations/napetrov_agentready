@@ -4,6 +4,7 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -12,13 +13,13 @@ import {
 import path from 'path'
 import { formatScanMarkdown, scanLocalReadiness, type LocalReadinessReport } from '../lib/repo-readiness/local-readiness'
 
-interface RealWorldRepo {
+export interface RealWorldRepo {
   name: string
   url: string
   tags?: string[]
 }
 
-type Classification =
+export type Classification =
   | 'product-readiness-evidence'
   | 'compatible-no-material-findings'
   | 'suspected-agentready-false-positive'
@@ -32,12 +33,18 @@ interface Args {
   keepWorktree: boolean
 }
 
-interface RotationState {
+export interface RotationState {
   nextIndex: number
   lastRunAt?: string
 }
 
-interface IndependentSignals {
+export interface BatchSelection {
+  repos: RealWorldRepo[]
+  nextIndex: number
+  skippedSeen: number
+}
+
+export interface IndependentSignals {
   trackedFiles: number
   manifests: string[]
   workflows: string[]
@@ -60,10 +67,14 @@ interface LedgerEntry {
 const DEFAULT_REPORTS_DIR = path.join('reports', 'agentready-realworld-cron')
 const DEFAULT_BATCH_SIZE = 3
 const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024
+const GIT_LOW_RESOURCE_CONFIG = ['-c', 'pack.threads=1', '-c', 'index.threads=1', '-c', 'core.preloadIndex=false']
+const GIT_CLONE_MAX_ATTEMPTS = 3
+const GIT_RESOURCE_RETRY_DELAY_MS = 750
+const TRANSIENT_GIT_RESOURCE_ERROR = /unable to create thread|resource temporarily unavailable|fetch-pack: invalid index-pack output|index-pack failed/i
 const FALSE_POSITIVE_PATH_HINT = /(^|\/)(benchmarks?|data|examples?|fixtures?|golden|samples?|snapshots?|testdata|tests?)\//i
 const GENERATED_OR_VENDOR_HINT = /(^|\/)(vendor|third_party|node_modules|dist|build|target|coverage)\//i
 
-const sanitizeName = (name: string): string =>
+export const sanitizeName = (name: string): string =>
   name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-|-$/g, '') || 'repo'
 
 const timestampForPath = (date: Date): string => date.toISOString().replace(/[:.]/g, '-')
@@ -149,47 +160,124 @@ const readRepoPool = (repoPoolPath: string): RealWorldRepo[] => {
   return repos
 }
 
-const selectBatch = (pool: RealWorldRepo[], state: RotationState, batchSize: number): RealWorldRepo[] => {
-  const selected: RealWorldRepo[] = []
-  const cappedSize = Math.min(batchSize, pool.length)
-  for (let offset = 0; offset < cappedSize; offset += 1) {
-    selected.push(pool[(state.nextIndex + offset) % pool.length])
+const normalizeRepoKey = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/^git@github\.com:/, 'https://github.com/')
+    .replace(/^https?:\/\/github\.com\//, 'github.com/')
+    .replace(/\.git$/i, '')
+    .replace(/\/+$/g, '')
+
+export const repoKey = (repo: RealWorldRepo): string => normalizeRepoKey(repo.url || repo.name)
+
+export const readScannedRepoKeys = (reportsDir: string): Set<string> => {
+  const ledgersDir = path.join(reportsDir, 'ledgers')
+  const seen = new Set<string>()
+  if (!existsSync(ledgersDir)) return seen
+
+  for (const file of readdirSync(ledgersDir)) {
+    if (!/^\d{4}-\d{2}\.jsonl$/.test(file)) continue
+    const ledgerPath = path.join(ledgersDir, file)
+    const lines = readFileSync(ledgerPath, 'utf8').split('\n').filter(Boolean)
+    for (const line of lines) {
+      const entry = JSON.parse(line) as Partial<LedgerEntry>
+      if (entry.repo && entry.classification !== 'repo-selection-blocker') seen.add(repoKey(entry.repo))
+    }
   }
-  return selected
+
+  return seen
 }
 
-const updateRotation = (reportsDir: string, previous: RotationState, poolSize: number, scanned: number, now: Date): void => {
+export const selectBatch = (
+  pool: RealWorldRepo[],
+  state: RotationState,
+  batchSize: number,
+  seenRepos: Set<string>,
+): BatchSelection => {
+  const selected: RealWorldRepo[] = []
+  const selectedKeys = new Set<string>()
+  let skippedSeen = 0
+  let nextIndex = state.nextIndex
+
+  for (let offset = 0; offset < pool.length && selected.length < batchSize; offset += 1) {
+    const index = (state.nextIndex + offset) % pool.length
+    const repo = pool[index]
+    const key = repoKey(repo)
+    nextIndex = (index + 1) % pool.length
+
+    if (seenRepos.has(key) || selectedKeys.has(key)) {
+      skippedSeen += 1
+      continue
+    }
+
+    selected.push(repo)
+    selectedKeys.add(key)
+  }
+
+  return { repos: selected, nextIndex, skippedSeen }
+}
+
+const updateRotation = (reportsDir: string, nextIndex: number, now: Date): void => {
   const next: RotationState = {
-    nextIndex: poolSize === 0 ? 0 : (previous.nextIndex + scanned) % poolSize,
+    nextIndex,
     lastRunAt: now.toISOString(),
   }
   writeFileSync(path.join(reportsDir, 'state.json'), `${JSON.stringify(next, null, 2)}\n`)
 }
 
-const cloneOrFetch = (repo: RealWorldRepo, cloneDir: string): void => {
-  if (existsSync(cloneDir)) {
-    execFileSync('git', ['-C', cloneDir, 'fetch', '--quiet', '--depth', '1', 'origin', 'HEAD'], {
-      maxBuffer: GIT_MAX_BUFFER_BYTES,
-      stdio: ['ignore', 'ignore', 'pipe'],
-    })
-    execFileSync('git', ['-C', cloneDir, 'reset', '--quiet', '--hard', 'FETCH_HEAD'], {
-      maxBuffer: GIT_MAX_BUFFER_BYTES,
-      stdio: ['ignore', 'ignore', 'pipe'],
-    })
-    return
-  }
-  execFileSync('git', ['clone', '--quiet', '--depth', '1', repo.url, cloneDir], {
+export const isTransientGitResourceError = (message: string): boolean => TRANSIENT_GIT_RESOURCE_ERROR.test(message)
+
+const sleepSync = (ms: number): void => {
+  const blocker = new Int32Array(new SharedArrayBuffer(4))
+  Atomics.wait(blocker, 0, 0, ms)
+}
+
+function gitLowResource(args: string[]): Buffer
+function gitLowResource(args: string[], options: { encoding: BufferEncoding; stdout: 'pipe' }): string
+function gitLowResource(args: string[], options: { encoding?: BufferEncoding; stdout?: 'ignore' | 'pipe' } = {}): string | Buffer | null {
+  return execFileSync('git', [...GIT_LOW_RESOURCE_CONFIG, ...args], {
+    encoding: options.encoding,
     maxBuffer: GIT_MAX_BUFFER_BYTES,
-    stdio: ['ignore', 'ignore', 'pipe'],
+    stdio: ['ignore', options.stdout ?? 'ignore', 'pipe'],
+    env: {
+      ...process.env,
+      GIT_OPTIONAL_LOCKS: '0',
+    },
   })
 }
 
+const cloneOrFetchOnce = (repo: RealWorldRepo, cloneDir: string): void => {
+  if (existsSync(cloneDir)) {
+    gitLowResource(['-C', cloneDir, 'fetch', '--quiet', '--depth', '1', 'origin', 'HEAD'])
+    gitLowResource(['-C', cloneDir, 'reset', '--quiet', '--hard', 'FETCH_HEAD'])
+    return
+  }
+  gitLowResource(['clone', '--quiet', '--depth', '1', '--single-branch', repo.url, cloneDir])
+}
+
+export const cloneOrFetch = (repo: RealWorldRepo, cloneDir: string): void => {
+  const errors: string[] = []
+
+  for (let attempt = 1; attempt <= GIT_CLONE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      cloneOrFetchOnce(repo, cloneDir)
+      return
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      errors.push(`attempt ${attempt}/${GIT_CLONE_MAX_ATTEMPTS}: ${message}`)
+      if (!isTransientGitResourceError(message) || attempt === GIT_CLONE_MAX_ATTEMPTS) {
+        throw new Error(errors.join('\n\n'))
+      }
+
+      rmSync(cloneDir, { recursive: true, force: true })
+      sleepSync(GIT_RESOURCE_RETRY_DELAY_MS * attempt)
+    }
+  }
+}
+
 const gitOutput = (repoDir: string, args: string[]): string =>
-  execFileSync('git', ['-C', repoDir, ...args], {
-    encoding: 'utf8',
-    maxBuffer: GIT_MAX_BUFFER_BYTES,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim()
+  gitLowResource(['-C', repoDir, ...args], { encoding: 'utf8', stdout: 'pipe' }).trim()
 
 const independentSignalsFor = (repoDir: string): IndependentSignals => {
   const tracked = gitOutput(repoDir, ['ls-files']).split('\n').filter(Boolean)
@@ -215,25 +303,32 @@ const findingCounts = (report: LocalReadinessReport): Record<string, number> =>
     return acc
   }, {})
 
+const isLikelyFalsePositiveFinding = (finding: LocalReadinessReport['findings'][number]): boolean => {
+  if (finding.severity === 'info' || !finding.path) return false
+  if (finding.id.startsWith('files.large') && FALSE_POSITIVE_PATH_HINT.test(finding.path)) return true
+  if (finding.id.startsWith('files.minified') && GENERATED_OR_VENDOR_HINT.test(finding.path)) return true
+  return false
+}
+
 const likelyFalsePositiveFindings = (report: LocalReadinessReport): string[] =>
   report.findings
-    .filter(finding => {
-      if (finding.severity === 'info' || !finding.path) return false
-      if (finding.id.startsWith('files.large') && FALSE_POSITIVE_PATH_HINT.test(finding.path)) return true
-      if (finding.id.startsWith('files.minified') && GENERATED_OR_VENDOR_HINT.test(finding.path)) return true
-      return false
-    })
+    .filter(isLikelyFalsePositiveFinding)
     .map(finding => `${finding.id}${finding.path ? ` (${finding.path})` : ''}`)
 
-const classify = (report: LocalReadinessReport, signals: IndependentSignals): { classification: Classification; notes: string[] } => {
+export const classify = (report: LocalReadinessReport, signals: IndependentSignals): { classification: Classification; notes: string[] } => {
   const notes: string[] = []
   const suspectedFalsePositives = likelyFalsePositiveFindings(report)
+  const materialFindings = report.findings.filter(finding => finding.severity === 'warning' || finding.severity === 'error')
 
   if (signals.trackedFiles === 0) {
     return { classification: 'repo-selection-blocker', notes: ['git reported zero tracked files'] }
   }
 
-  if (suspectedFalsePositives.length > 0) {
+  if (
+    suspectedFalsePositives.length > 0
+    && materialFindings.length > 0
+    && materialFindings.every(isLikelyFalsePositiveFinding)
+  ) {
     notes.push(`possible false positives: ${suspectedFalsePositives.slice(0, 5).join('; ')}`)
     return { classification: 'suspected-agentready-false-positive', notes }
   }
@@ -358,13 +453,21 @@ const run = (): void => {
   const statePath = path.join(args.reportsDir, 'state.json')
   const state = readJsonFile<RotationState>(statePath, { nextIndex: 0 })
   const pool = args.repos.length > 0 ? args.repos : readRepoPool(args.repoPoolPath)
-  const batch = args.repos.length > 0 ? args.repos.slice(0, args.batchSize) : selectBatch(pool, state, args.batchSize)
+  const selection = args.repos.length > 0
+    ? { repos: args.repos.slice(0, args.batchSize), nextIndex: state.nextIndex, skippedSeen: 0 }
+    : selectBatch(pool, state, args.batchSize, readScannedRepoKeys(args.reportsDir))
+  const batch = selection.repos
+
+  if (batch.length === 0) {
+    throw new Error(`repo pool has no unscanned repositories left; add new entries to ${args.repoPoolPath}`)
+  }
 
   const entries = batch.map(repo => scanRepo(repo, args, runId, now))
   for (const entry of entries) appendLedger(path.join(args.reportsDir, 'ledgers'), entry)
 
   if (args.repos.length === 0) {
-    updateRotation(args.reportsDir, state, pool.length, batch.length, now)
+    const hasBlocker = entries.some(entry => entry.classification === 'repo-selection-blocker')
+    updateRotation(args.reportsDir, hasBlocker ? state.nextIndex : selection.nextIndex, now)
   }
 
   const summary = entries.reduce<Record<Classification, number>>(
@@ -384,14 +487,17 @@ const run = (): void => {
     `AgentReady real-world cron run ${runId}`,
     `Reports: ${args.reportsDir}`,
     `Repos scanned: ${entries.length}`,
+    `Previously scanned repos skipped: ${selection.skippedSeen}`,
     `Classifications: ${JSON.stringify(summary)}`,
     '',
   ].join('\n'))
 }
 
-try {
-  run()
-} catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-  process.exit(1)
+if (require.main === module) {
+  try {
+    run()
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+    process.exit(1)
+  }
 }

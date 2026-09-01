@@ -1,6 +1,6 @@
 # AgentReady
 
-AgentReady is an open-source, local-first scanner for AI coding-agent readiness.
+AgentReady is an open-source, local-first scanner for AI coding-agent readiness. It answers a different question than lint, CI, Scorecard, or secret scanners: not “is this code good?”, but “can a coding agent operate in this repository safely and leave reviewable evidence?”
 
 The core question is:
 
@@ -9,6 +9,8 @@ The core question is:
 AgentReady is a command-line tool and library. It scans a repository on disk, observes facts with deterministic detectors, evaluates them against built-in checks, and emits a readiness report and an experimental score. No external service is contacted, and the repository's own scripts are never executed.
 
 It is designed around the major coding agents — Codex, Claude Code, GitHub Copilot, Cursor, Windsurf, Cline, Roo, and Gemini.
+
+See example output before installing: [high-readiness report](examples/reports/high-readiness.md) and [improvement-plan report](examples/reports/improvement-plan.md).
 
 ## What It Scans
 
@@ -29,33 +31,65 @@ Most repositories were not designed for autonomous agents. Even when CI passes, 
 
 AgentReady treats repository readiness as agent operability, not generic code quality. It is descriptive before prescriptive: early output shows what is present, what is missing, what overlaps, and what may create friction.
 
+AgentReady complements, rather than replaces, existing checks:
+
+- **CI/lint/test** prove the current change still works; AgentReady checks whether an agent can discover the right checks before editing.
+- **Scorecard/security scanners** look for supply-chain and vulnerability signals; AgentReady looks for agent-facing context, command, capability, and review surfaces.
+- **Repo docs** help humans; AgentReady verifies whether that guidance is findable, scoped, and machine-reportable.
+
+The intended output is a prioritized improvement plan for agent onboarding, plus stable evidence that CI and enterprise tools can consume.
+
 ## Architecture
 
 Evidence collection is separated from policy:
 
 - **Detectors** observe facts about the repository (`lib/repo-readiness/detectors/`).
 - **Checks** evaluate those facts against rules and emit findings (`lib/repo-readiness/checks/`).
-- **Scoring** converts findings into an experimental readiness score (`lib/repo-readiness/core/scoring.ts`).
+- **Scoring** converts findings into an experimental readiness score, plus a per-category (`docs`/`commands`/`ci`/`instructions`/`files`/`safety`) dimension-score rollup so, e.g., unsafe scripts don't get averaged away by strong CI (`lib/repo-readiness/core/scoring.ts`, `lib/repo-readiness/checks/catalog.ts`).
 - **Reporters** render console, JSON, and markdown output (`lib/repo-readiness/reporters/`).
 - The **scan engine** wires these together (`lib/repo-readiness/core/scan-engine.ts`).
 
-See [docs/product/architecture.md](docs/product/architecture.md) for the full model.
+See [docs/product/architecture.md](docs/product/architecture.md) for the full model, [docs/product/positioning.md](docs/product/positioning.md) for the product boundary, and [docs/roadmap/v0.3-issue-drafts.md](docs/roadmap/v0.3-issue-drafts.md) for the next milestone issue drafts.
+
+### Design guarantees
+
+Four properties back the trust model this scanner asks you to rely on:
+
+- **Local-first and non-networked.** No external service is contacted and the
+  scanned repository's own scripts are never executed (see "What It Scans"
+  above). The optional LLM analyze layer is the one exception, and it is
+  off unless explicitly configured. Every default scan report lists the
+  platform-level controls this guarantee means it cannot see (branch
+  protection, required status checks, environment approval rules, ...) under
+  "Not verified from repository contents," so their absence never reads as
+  "confirmed fine."
+- **The optional LLM layer can run without AgentReady ever holding a
+  credential.** If you run AgentReady from inside an agent host (Claude Code,
+  Cursor, …), the bundled MCP server lets that host's own model do the
+  reasoning over stdio — see "Use your agent's own model" under Analyze below.
+- **`diff` never mutates your working tree.** It scans each ref through a
+  temporary, isolated `git worktree` and works even with uncommitted changes —
+  see "Diff (PR readiness)" below.
+- **Config and report shapes are versioned, published contracts**, not
+  incidental JSON: JSON Schema is generated from the same Zod schemas the
+  scanner validates against, exported via the package's `./schemas/*` subpath,
+  and drift-checked in CI — see "Configuration" below.
 
 ## Install And Run
 
-Prerequisites: Node.js 18+.
+Prerequisites: Node.js 24+ for the current development branch.
 
 ```bash
+git clone https://github.com/napetrov/agentready.git
+cd agentready
 npm ci
 npm run agentready -- scan .
 ```
 
-Once published you can run it without cloning (the package is published as the
-scoped `@napetrov/agentready`; the `agentready` command name is unchanged):
-
-```bash
-npx @napetrov/agentready scan .
-```
+The package name is reserved in this repository as the scoped
+`@napetrov/agentready`, and the installed command name remains `agentready`. The
+package is **not published yet**; until the first npm release, use the local
+development command above or the first-party GitHub Action from this repository.
 
 ### Scan
 
@@ -71,6 +105,29 @@ The legacy `--json` / `--markdown` / `--sarif` flags are still accepted. Both
 `scan` and `diff` support `--fail-on <off|info|warning|error>` (default `error`)
 and `--min-score <0-100>`; the process exits non-zero when a gate trips.
 
+### Policy packs
+
+`--policy <name>` applies a team-specific severity policy to gating without
+changing the raw findings or score. Four packs ship today: `default` (a no-op),
+`enterprise` (escalates missing/non-portable agent instructions,
+install/deploy/high-risk-capability/automatic-hook-execution safety signals,
+and protected-path CODEOWNERS gaps for organization-wide rollout governance),
+`oss` (escalates stale command references and contribution-onboarding gaps for
+repos that rely on external contributors), and `ml-scientific` (relaxes
+large-fixture and unified-lint-command gates for research/scientific-computing
+repos, where both are routine rather than neglect):
+
+```bash
+npm run agentready -- scan . --policy enterprise --fail-on error
+npm run agentready -- scan . --policy oss --fail-on error
+npm run agentready -- scan . --policy ml-scientific --fail-on error
+```
+
+A non-default policy also prints its severity adjustments (with reasons) to
+human-readable output. See [docs/product/policy-packs.md](docs/product/policy-packs.md)
+for the design and what's still open (a config-file `policyOptions` shape for
+tuning thresholds without a CLI flag on every invocation).
+
 ### Diff (PR readiness)
 
 `diff` compares two git refs and fails on new regressions. It uses a temporary
@@ -80,6 +137,31 @@ uncommitted changes:
 ```bash
 npm run agentready -- diff --base origin/main --head HEAD . --fail-on-regression
 ```
+
+### Batch (portfolio) scans
+
+`batch` scans multiple repositories in one invocation and emits an aggregated
+summary — no hosted service required. Pass explicit paths, `--root <dir>` to
+scan every immediate subdirectory of `dir`, or both:
+
+```bash
+npm run agentready -- batch ~/repos/service-a ~/repos/service-b
+npm run agentready -- batch --root ~/repos --format markdown --output portfolio.md
+npm run agentready -- batch --root ~/repos --min-score 70   # gate on any repo below 70
+```
+
+One repo failing to scan never aborts the batch; it's reported per-repo
+instead. `--fail-on-scan-error` (default on; pass `--no-fail-on-scan-error`
+to disable) and `--min-score` gate the exit code.
+
+`batch` is deliberately local-only: it scans repositories already present on
+disk rather than a GitHub organization directly. Auto-discovering and cloning
+every repo in an org would mean AgentReady itself makes network calls and
+holds a GitHub credential, breaking the no-external-service guarantee every
+other command relies on. Clone (or `git clone --depth 1`) the org's repos
+yourself — a CI job, `gh repo list <org> --limit 1000 --json name -q '.[].name' | xargs -I{} gh repo clone <org>/{}`
+(`--limit` matters: `gh repo list` defaults to 30 results), or an existing
+script all work — into one directory and point `--root` at it.
 
 ### Explain a finding
 
@@ -177,10 +259,11 @@ steps:
 ```
 
 Inputs include `path`, `mode`, `base-ref`, `head-ref`, `config`,
-`fail-on-severity`, `fail-on-regression`, `min-score`, `job-summary`,
+`fail-on-severity`, `fail-on-regression`, `min-score`, `policy`, `job-summary`,
 `pr-comment`, `pr-comment-condition`, `github-token`, `upload-sarif`, `output-dir`, `tool-version`,
 `analyze`, and `analyze-min-score`; outputs include `score`, `findings-count`,
-`regressions-count`, the report paths, and (when `analyze` is on)
+`regressions-count`, the report paths, `policy-adjustments-count`, (when
+`policy` is non-default) `policy-effective-score`, and (when `analyze` is on)
 `augmented-score`/`augmented-report-path`. See [`action.yml`](action.yml) for
 the authoritative contract.
 
@@ -251,6 +334,33 @@ steps:
 The deterministic gates run first and are unaffected; augmented-score gating is
 opt-in via `analyze-min-score`. Without a provider, `analyze` runs
 deterministic-only.
+
+### Evaluation / benchmarks
+
+AgentReady should earn trust by comparing readiness findings against real agent
+friction, not just by existing. Two separate evaluation efforts back that up:
+
+- **The optional LLM analyze layer has its own offline eval harness.**
+  `npm run agentready:eval` (`bin/agentready-eval.ts`) runs the real analyzer
+  pipeline over a labeled gold corpus of canned model responses and reports
+  precision/recall/F1, a confusion matrix, and confidence calibration — no live
+  model call required. `analyze-corpus.test.ts` enforces a floor in CI, so a
+  regression in hallucination guards, score folding, or id drift fails the
+  build before it ships. The same harness can score a live model in a one-off
+  recording run.
+- **The deterministic core is dogfooded against real repositories.** Every
+  release is rescanned against a small corpus of real OSS/scientific
+  repositories (see `dev/REAL-REPO-EVAL.md` and the "Post-dogfood hardening
+  plan" in `dev/BACKLOG.md`) to catch false positives before they reach users —
+  this drove concrete detector fixes (e.g. a Python `Copyright` comment no
+  longer implies `pyright` type-check coverage). The public benchmark plan
+  comparing readiness findings against real agent task friction is in
+  [docs/product/evaluation.md](docs/product/evaluation.md); `npm run
+  agentready:benchmark` automates the scan half of that corpus today. The
+  human-judgment half — classifying a reviewed repository's findings as
+  `true_positive`/`false_positive`/`false_negative`/`severity_mismatch`/
+  `policy_mismatch`/`not_observable_locally` — is captured as structured data
+  under [`reports/evaluation/calibration/`](reports/evaluation/calibration/).
 
 ### Configuration
 

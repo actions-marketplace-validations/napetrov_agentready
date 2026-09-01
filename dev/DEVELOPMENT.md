@@ -83,6 +83,316 @@ detection (Gradle/Maven, .NET, additional Python tooling).
 
 ## Agent Progress Log
 
+### 2026-07-19 (ADR 0005 compliance fix: portfolio finding-field advertisement)
+- **CLOSED A LATENT GAP** against the ADR's own verification checklist: "any
+  report shape that serializes findings carrying `confidence`/`scope` must
+  advertise them the same way." The scan report did (via `reportContract`) and
+  the diff report did structurally (via its embedded `baseReport`/`headReport`
+  contracts), but `PortfolioReport`'s `topFindings` neither advertised nor
+  stripped — harmless only because no built-in rule sets a non-default
+  `confidence`/`scope` yet, so the keys never actually appeared.
+- Extracted the advertise-computation shared by both call sites into
+  `core/experimental-finding-fields.ts` (`computeExperimentalFindingFields`),
+  used it in `scan-engine.ts` (replacing the old inline logic, unchanged
+  behavior) and in a new `portfolio.ts` helper, `buildPortfolioRepoResult`,
+  which now populates `PortfolioRepoResult.experimentalFindingFields` from
+  `topFindings` specifically (not the full finding set, so it never advertises
+  a key that was filtered out by the info-severity/cap logic before
+  serialization).
+- Added the Zod/JSON-Schema field (`portfolioRepoResultSchema`, a shared
+  `experimentalFindingFieldSchema` now reused by both the report and portfolio
+  contracts), regenerated `schemas/portfolio-report.schema.json`, and rebuilt
+  the action bundle.
+- Added tests: a dedicated unit-test file for the shared helper; three
+  `buildPortfolioRepoResult` cases (omit/advertise/advertise-only-what's-in-
+  topFindings); a diff-report test locking in that `headReport`/`baseReport`
+  contracts are the advertisement mechanism for `newFindings`/`resolvedFindings`/
+  `regressions`; and a doc comment on `ReadinessDiffReport` explaining why no
+  separate top-level marker is needed there.
+- Verified: type-check + lint clean, 741 tests pass (8 new), schema `--check`
+  up to date, action bundle rebuilt.
+
+### 2026-07-18 (ADR 0005 review hardening, round 3: real coverage gaps)
+- **COVERAGE NOW REFLECTS PARSE STATE.** Codex found that an unparseable (or
+  no-jobs) CI workflow still counted `ci-workflows` as fully assessed — 100%
+  coverage and `verifiedLocally` the scan did not earn, since `parseWorkflow`
+  degrades such a workflow to `{ jobs: [] }`. Added `coverageGaps()` to
+  `core/readiness-profile.ts`: a `ci-workflows` surface with any jobless workflow
+  is recorded as a coverage gap, excluded from `assessedSurfaces` (so `ratio`
+  drops below 1) and from `observability.verifiedLocally`. This is the first real
+  "recognized but unassessed" case, so coverage is no longer always 100%. Added a
+  unit test and updated the diff snapshot (its fixture writes a `name: CI`-only
+  workflow, which now correctly shows a gap).
+- Verified: type-check + lint clean, 733 tests pass, schema `--check` up to date,
+  action bundle rebuilt, action-smoke passes.
+
+### 2026-07-18 (ADR 0005 review hardening, round 2)
+- **PUBLISHED-SCHEMA COVERAGE INVARIANT**: the coverage cross-field `.refine()`
+  checks did not serialize into the draft-07 JSON Schemas, so external consumers
+  could accept coverage the runtime rejects. Extracted `coverageReportSchema` as
+  a named export and added a `coverageInvariantOverride` to
+  `bin/agentready-emit-schemas.ts` that enumerates the 36 valid
+  `(applicableSurfaces, assessedSurfaces, ratio)` combinations into `anyOf` —
+  same override mechanism the dimensions/autonomy pigeonhole checks use.
+  Regenerated all report schemas (scan/augmented/diff base+head). Added a
+  structural test asserting the emitted enumeration is exactly the valid set
+  (and excludes impossible combos like `4/2` with ratio 1).
+- **DOCSTRINGS**: converted the function-lead `//` comments on the new
+  profile/scoring/reporter helpers to `/** */` docstrings and filled gaps, so
+  each function in the changed source files carries a docstring.
+- Verified: type-check + lint clean, 732 tests pass, schema `--check` up to date,
+  action bundle rebuilt, action-smoke passes.
+
+### 2026-07-18 (ADR 0005 review hardening)
+- **LAYERING**: moved `NOT_VERIFIED_EXTERNAL_CONTROLS` from
+  `reporters/not-verified.ts` to `core/not-verified.ts` so `core` no longer
+  imports from the `reporters` layer (`core/readiness-profile.ts` and both
+  reporters now import from core).
+- **CONTRACT TIGHTENING**: `ObservabilityReport.verifiedLocally`/`notFound` are
+  now `CoverageSurfaceKind[]` (enum-constrained in the Zod + JSON schemas) rather
+  than free strings; added cross-field `.refine()` invariants to the coverage
+  schema (`assessedSurfaces <= applicableSurfaces`, and `ratio` equals the
+  derived value / `1` when nothing applies), with a rejecting-cases test in
+  `__tests__/schemas.test.ts`.
+- **DOCS**: fixed the ADR coverage example to stay within the seven-kind
+  taxonomy bound (`5/7`, was `7/9`) and removed a now-contradictory "later
+  phases" note from the phase-1 CHANGELOG entry.
+- Verified: type-check + lint clean, 731 tests pass, schema `--check` up to date,
+  action bundle rebuilt, action-smoke passes.
+
+### 2026-07-18 (ADR 0005 implementation phase 3: profile-led reporters)
+- **MADE THE PROFILE THE HEADLINE OUTPUT.** `formatScanSummary`
+  (`lib/repo-readiness/reporters/console.ts`) and `formatScanMarkdown`
+  (`lib/repo-readiness/reporters/markdown.ts`) now open with a Repository Agent
+  Readiness Profile block — capability-risk verdict, scanner-coverage percentage
+  (assessed/applicable), and calibration confidence — with per-stage readiness
+  covered by the existing autonomy-envelope rendering. The single 0–100 score is
+  relabeled as a secondary signal below the profile. This delivers the ADR's core
+  human-facing decision ("demote the score"). Rendering is defensive: reports
+  without a `readinessProfile` (legacy/synthetic) omit the block, matching the
+  existing `dimensions`/`autonomyEnvelope` pattern.
+- **VERIFICATION**: `npm run type-check` clean (excluding pre-existing tsconfig
+  deprecation warnings); `npm run lint` clean; `npx jest` 730 pass (3 new
+  reporter assertions in `__tests__/repo-reporters.test.ts`; 4 output snapshots
+  updated for the additive profile block + secondary-score relabel);
+  `agentready:schemas -- --check` up to date (no schema change this phase);
+  `npm run build:action` rebuilt the bundle; `agentready:action-smoke` and a live
+  `scan .` show the profile leading the output (risk low, coverage 5/5, score 85
+  secondary). The `AgentReady score: N/100` substring and the compact `Autonomy:`
+  line are preserved, keeping `cli.test.ts`/`repo-reporters.test.ts` green.
+- **REMAINING PHASES**: rules populating finding-level `confidence`/`scope`; and
+  the diff/portfolio finding-field advertisement once rules emit those keys.
+
+### 2026-07-18 (ADR 0005 implementation phase 2: Repository Agent Readiness Profile)
+- **ADDED THE `readinessProfile` REPORT AXIS.** New
+  `lib/repo-readiness/core/readiness-profile.ts` computes a `ReadinessProfile`
+  (`calculateReadinessProfile`) from the assembled report and the scan engine
+  attaches it, registered as the `readinessProfile` experimental field. Four
+  axes: `readiness` reuses the already-computed `autonomyEnvelope` verbatim (so
+  the two are equal by construction); `risk` aggregates capability surfaces to
+  the worst tier present (one `high` is never diluted by many `low`; no surfaces
+  → verified `low` with empty refs, never `unknown`; MCP configs stay `high`),
+  referencing the `safety.capability.high-risk:<path>` finding for high surfaces
+  and the derived `capability:<path>:<kind>` key otherwise; `coverage` counts a
+  fixed `CoverageSurfaceKind` taxonomy by kind, not by file/record; and
+  `observability` splits verified-locally / not-found / not-observable-locally
+  (reusing `NOT_VERIFIED_EXTERNAL_CONTROLS`). `calibrationConfidence` is `low`.
+- **ADDED THE `experimentalFindingFields` MARKER** to `reportContract`
+  (addressing a Codex review point): the scan engine advertises nested
+  `findings[].confidence`/`scope` keys whenever a rule populates them, so
+  consumers of `local-readiness/v2` can detect and strip the unstable nested
+  keys. No built-in rule emits them yet, so it is normally omitted.
+- **VERIFICATION**: `npm run type-check` clean (excluding the pre-existing
+  tsconfig deprecation warnings); `npm run lint` clean;
+  `npm run agentready:schemas -- --check` up to date; `npx jest` 727 pass (12 new
+  in `__tests__/readiness-profile.test.ts`; output snapshots updated for the
+  additive `readinessProfile` field); `npm run build:action` regenerated the
+  action bundle; `agentready:action-smoke`, `agentready:pack-smoke`,
+  `agentready:eval`, and a self-scan all pass (self-scan: score 85, risk low,
+  coverage 5/5).
+- **REMAINING PHASES**: human-facing reporter sections (console/markdown profile
+  block); populating finding-level `confidence`/`scope` from rules; and the
+  diff/portfolio finding-field advertisement once rules emit those keys.
+
+### 2026-07-18 (ADR 0005 implementation phase 1: calibratable scoring engine)
+- **IMPLEMENTED THE CALIBRATABLE SCORING CORE** from ADR 0005. `calculateScore`
+  (`lib/repo-readiness/core/scoring.ts`) now takes an optional `ScoreWeights`
+  parameter and multiplies each finding's severity penalty by (rule-owned,
+  optional) `confidence` and `scope` factors on `ReadinessFinding`
+  (`lib/repo-readiness/core/types.ts`). The default `DEFAULT_WEIGHTS` is
+  deep-frozen with all-`1` confidence/scope multipliers, so the default score is
+  byte-identical to the pre-ADR fixed-penalty model — verified by a regression
+  test and the unchanged output snapshots. Fractional (calibrated) weights are
+  rounded to an integer so `summary.score` and `dimensions[].score` still satisfy
+  their integer schema; injected non-default weights are validated
+  (`assertValidWeights`) to reject negative/non-finite/incomplete tables that
+  could `NaN` the score or inflate it past a gate. Added optional
+  `confidence`/`scope` to `readinessFindingSchema` and regenerated the published
+  JSON Schemas.
+- **VERIFICATION**: `npm run lint` clean; `npm run agentready:schemas -- --check`
+  reports schemas up to date; `npx jest` 715 pass (10 new in
+  `__tests__/scoring.test.ts`; 15 snapshots unchanged); `npm run build` clean;
+  `agentready scan .` and `npm run agentready:fixtures` pass with integer scores.
+  (`npm run type-check` exits non-zero only on the pre-existing tsconfig
+  `moduleResolution`/`baseUrl` deprecation warnings, unrelated to this change.)
+- **REMAINING PHASES**: `readinessProfile` axes (Readiness/Risk/Coverage/
+  Observability), the `CoverageSurfaceKind` taxonomy, the
+  `experimentalFindingFields` opt-in marker and its emission across scan/diff/
+  portfolio reports, and reporter changes.
+
+### 2026-07-18 (ADR 0005: calibrated multi-dimensional readiness profile)
+- **PROPOSED ADR 0005** (`docs/adr/0005-calibrated-multi-dimensional-readiness-profile.md`,
+  indexed in `docs/adr/README.md`): a `Proposed` architecture decision, no
+  runtime code change. Rationale: the fixed severity-penalty score
+  (`lib/repo-readiness/core/scoring.ts`) has structural problems weight-tuning
+  can't fix (finding count substitutes for risk; no applicability denominator;
+  confidence/scope/outcome data unused). Records demoting the absolute score to
+  a secondary view behind a four-axis Repository Agent Readiness Profile
+  (Readiness reusing `autonomyEnvelope`; Risk reusing `CapabilityRiskTier`;
+  Coverage with an applicable-surface taxonomy; Observability), plus additive
+  confidence/scope finding inputs, a frozen `DEFAULT_WEIGHTS` that keeps default
+  scores byte-identical, integer rounding for fractional calibrated weights, and
+  an `experimentalFindingFields` opt-in marker carried across scan/diff/portfolio
+  report shapes.
+- **VERIFICATION**: documentation-only change. Hardened over multiple
+  automated-review rounds (Codex + CodeRabbit) against the shipped types —
+  `ReadinessFinding`, `AutonomyStatus`, `CapabilityRiskTier`, the strict
+  `z.number().int()` dimension schema, the `PolicyPack`/gate contract, MCP
+  `riskTier: 'high'`, and finding serialization in diff/portfolio reports — so
+  the ADR's illustrative types match `lib/repo-readiness/core/*` rather than
+  overclaiming. Adjacent review items (policy plane, MCP assurance, security
+  scope, environment dimension, telemetry, enrichers) are mapped to the axis
+  each feeds and deferred to their own ADRs.
+
+### 2026-07-15 (oss/ml-scientific policy packs, instruction contradictions, CODEOWNERS coverage gaps)
+- **DELIVERED `oss` AND `ml-scientific` POLICY PACKS**: implemented per the
+  existing spec in `docs/product/policy-packs.md`, following `enterprise`'s
+  escalation model (`lib/repo-readiness/checks/policy-packs.ts`). `oss`
+  escalates stale command references and contribution-onboarding gaps;
+  `ml-scientific` de-escalates warning-level `files.large` and
+  `commands.lint.missing` to `info` (error-level `files.large` stays
+  gateable — see `Escalation.from`).
+- **ADDED DETERMINISTIC INSTRUCTION-FILE CONTRADICTION DETECTION**:
+  `detectInstructionContradictions` (`lib/repo-readiness/detectors/
+  instruction-contradictions.ts`) flags root/legacy always-active
+  instruction files that each exclusively reference a different single
+  package manager, as `instructions.contradiction.package-manager`
+  (warning). Scoped to files sharing an instruction-surface ecosystem (no
+  false positive between e.g. `AGENTS.md` and `.claude/CLAUDE.md`, which no
+  single agent loads together) and negation-aware (a prohibition like
+  "never run npm install" isn't treated as endorsing npm).
+- **ADDED CODEOWNERS COVERAGE-GAP DETECTION**: `detectCodeownersCoverageGaps`
+  (`lib/repo-readiness/detectors/governance.ts`) flags top-level directories
+  with sustained recent commit activity (local git history only, bounded,
+  no network calls) that no CODEOWNERS pattern covers, as
+  `docs.codeowners.coverage-gap` (info, one finding per directory for diff
+  fidelity). Went through many rounds of automated-review hardening on this
+  PR: per-commit (not per-file-line) activity counting; per-file (not
+  per-directory-placeholder) pattern matching; symlink-safe bounded reads up
+  to GitHub's real 3 MiB CODEOWNERS limit (oversized files fall through to
+  "no effective rules", matching GitHub's real all-or-nothing load
+  behavior); `.github/` > root > `docs/` file precedence (matches GitHub's
+  documented search order); ignore-filtered scan-inventory awareness;
+  ownerless-line and inline-comment-aware owner-token validation; explicit
+  last-match-wins semantics (replacing a single combined `ignore()` matcher,
+  which can't correctly model a later ownerless pattern overriding an
+  earlier broader owned one — verified against GitHub's own documented
+  example) instead of relying on gitignore-style negation, which CODEOWNERS
+  doesn't support as input syntax and which has its own re-inclusion
+  limitations `ignore()` doesn't work around; skips `[ ]` character-range
+  patterns too (unsupported CODEOWNERS syntax GitHub also skips the whole
+  line for, but which `ignore()` would otherwise match literally).
+- **RESTRICTED THE `commands.lint.missing` DE-ESCALATION TO WARNING-LEVEL
+  FINDINGS**: matches the existing `files.large` guard (`Escalation.from`) —
+  an `errorOnWarnings`-promoted `commands.lint.missing` finding is now left
+  gateable under `--fail-on error` instead of the `ml-scientific` pack
+  silently undoing that strict-mode escalation.
+- **FIXED TWO MORE CODEOWNERS/INSTRUCTION-CONTRADICTION EDGE CASES**: a
+  CODEOWNERS line with an invalid placeholder owner (e.g. `/src/ TODO`) is
+  now distinguished from a truly ownerless line (zero tokens after the
+  pattern) — GitHub skips the invalid line entirely rather than treating it
+  as an intentional override, so a broader owned pattern above it stays in
+  effect. The package-manager negation-cue regex in
+  `instruction-contradictions.ts` also now catches bare "not" (e.g. "Use
+  pnpm, not npm install"), not just "do/does/should/will not".
+- **DOCUMENTED THE GITHUB-ORG-API BATCH SCANNING NON-GOAL**: `batch --root`
+  stays local-only by design (README, `docs/product/features.md`'s
+  Non-Goals section, `dev/BACKLOG.md`) — auto-discovering/cloning an org's
+  repos would require AgentReady itself to hold a GitHub credential and make
+  network calls, breaking the no-external-service guarantee every other
+  command relies on.
+- **README DISCOVERABILITY PASS**: added a "Design guarantees" section and
+  expanded "Evaluation / benchmarks" so four already-shipped trust
+  properties (MCP host-delegated analyze, versioned JSON Schema contracts,
+  worktree-isolated `diff`, the offline LLM-layer eval harness) are easy to
+  find.
+- **ENFORCED CASE-SENSITIVE CODEOWNERS MATCHING**: GitHub's file lookup and
+  pattern evaluation are backed by git (case-sensitive), but both
+  `CODEOWNERS_PATTERNS_BY_PRECEDENCE` (used `/i`) and the per-pattern
+  `ignore()` matcher (defaults to `ignorecase: true`) were case-insensitive —
+  a `codeowners`/`CodeOwners` filename or a `/Src/` pattern would wrongly be
+  recognized/match. Fixed both (`governance.ts`); also required *every*
+  trailing token on a CODEOWNERS line to be a plausible owner, not just one
+  (`/src/ @team TODO` is invalid syntax GitHub skips as a whole, same as
+  `/src/ TODO`).
+- **FILTERED DIRECTORY ACTIVITY THROUGH THE SCAN INVENTORY PER FILE**:
+  `detectCodeownersCoverageGaps` previously filtered ignored/deleted paths
+  out only at the top-level-directory granularity; a directory with scanned
+  files elsewhere but whose only *recent commits* touched ignored files could
+  still be wrongly flagged. Now filtered per file before counting activity or
+  testing coverage.
+- **CAUGHT TWO MORE PACKAGE-MANAGER CONTRAST PHRASES**: the
+  `instruction-contradictions.ts` negation-cue regex now also recognizes
+  "instead of" and "rather than" (e.g. "Use pnpm instead of npm install"),
+  not just "not"/"never"/etc.
+- **FIXED THE INVALID `gh repo list <org> --clone` EXAMPLE**: that flag
+  doesn't exist; replaced with `gh repo list` piped into `gh repo clone`
+  across README, CHANGELOG, `dev/BACKLOG.md`, and
+  `docs/product/features.md`.
+- **Verification** (re-run after every fix round in this entry):
+  `npm run type-check`, `npm run lint`, `npm run test:coverage` (all suites
+  green, 80% coverage gate met — 628 tests as of the last round), `npm run
+  build`, `npm run agentready:schemas -- --check`, `npm run build:action`,
+  `npm run agentready:action-smoke` (passed). `npm run agentready:eval` was
+  not re-run since no change in this entry touches the LLM analyze layer.
+
+### 2026-06-08 (fuzz corpus fixture false positive)
+- **DOWNGRADED FUZZ CORPUS SEED FILES**: Extensionless files under test corpus
+  directories, such as Envoy compressor fuzz seeds, are treated as intentional
+  fixture data at `info` severity instead of warning-level context friction.
+  Verification: local readiness tests, CI smoke gates, and the PR regression
+  diff.
+
+### 2026-06-06 (generated fixture large files)
+- **SUPPRESSED GENERATED TEST FIXTURES**: Large files in generated/test fixture
+  locations, including baseline and snapshot-style generated artifacts, are
+  suppressed as intentional generated data while ordinary large source/text
+  files remain score-gating. Verification: `npm run agentready:action-smoke`
+  and `npm run ci`.
+
+### 2026-06-06 (generated minified vendor assets)
+- **IGNORED GENERATED MINIFIED FINDINGS**: Minified files already classified as
+  generated or vendored are kept in file inventory evidence but no longer
+  produce minified-file readiness warnings. The bundled GitHub Action was
+  rebuilt so the first-party action uses the same predicate. Verification:
+  `npm run build:action`, `npm run agentready:action-smoke`, and `npm run ci`.
+
+### 2026-06-06 (text snapshot fixture false positive)
+- **DOWNGRADED BENCHMARK SNAPSHOT TEXT FIXTURES**: Large text snapshot/golden
+  fixture files, such as Ruff benchmark snapshots under
+  `scripts/ty_benchmark/snapshots/`, are treated as intentional fixture data at
+  `info` severity while generic large text files still warn. Verification:
+  `npm test -- --runTestsByPath __tests__/local-readiness.test.ts --runInBand`
+  and `npm run ci`.
+
+### 2026-06-06 (README symlink inventory)
+- **KEPT README SYMLINKS SAFE**: Documentation symlinks remain visible for
+  README detection, but non-documentation symlinks such as `package.json` or
+  workflow files are excluded from the downstream `filePaths` reader surface so
+  detectors cannot follow targets outside the repository. Verification:
+  `npm test -- --runTestsByPath __tests__/local-readiness.test.ts --runInBand`,
+  `npm run agentready:action-smoke`, and `npm run ci`.
+
 ### 2026-05-30 (action + sarif)
 - **ADDED SARIF OUTPUT**: `reporters/sarif.ts` emits SARIF 2.1.0, collapsing
   `rule:instance` finding ids into stable rules with per-result levels and file

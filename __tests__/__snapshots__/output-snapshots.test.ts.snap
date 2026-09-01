@@ -77,10 +77,29 @@ exports[`diff output snapshots summary and markdown for a regression between two
         "lint",
         "test"
       ],
+      "makeTargets": [],
       "hasBuild": false,
       "hasTest": true,
       "hasLint": true,
       "hasTypeCheck": false
+    },
+    "commandReferences": [],
+    "instructionContradictions": [],
+    "governance": {
+      "protectedPathCoverage": [
+        {
+          "pattern": ".github/**",
+          "covered": false,
+          "owners": [],
+          "singleOwnerRisk": false
+        },
+        {
+          "pattern": "AGENTS.md",
+          "covered": false,
+          "owners": [],
+          "singleOwnerRisk": false
+        }
+      ]
     },
     "ci": {
       "workflowFiles": [
@@ -123,8 +142,9 @@ exports[`diff output snapshots summary and markdown for a regression between two
     ],
     "capabilities": [],
     "safetySignals": [],
+    "hookExecutionRisks": [],
     "summary": {
-      "score": 100,
+      "score": 94,
       "totalFiles": 4,
       "totalBytes": 75,
       "sourceFiles": 0,
@@ -135,7 +155,458 @@ exports[`diff output snapshots summary and markdown for a regression between two
       "generatedFiles": 0,
       "minifiedFiles": 0
     },
-    "findings": []
+    "repositoryEvidence": {
+      "roots": [
+        {
+          "id": "root:.",
+          "kind": "repository-root",
+          "rootKind": "package",
+          "path": ".",
+          "paths": [
+            "."
+          ],
+          "languages": [
+            "TypeScript"
+          ],
+          "manifests": [
+            "package.json"
+          ],
+          "sourceFiles": 0,
+          "testFiles": 0,
+          "documentationFiles": 2,
+          "generatedFiles": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "AGENTS.md",
+              "note": "conventional path"
+            },
+            {
+              "detector": "repository-evidence",
+              "kind": "manifest",
+              "path": "package.json"
+            },
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "README.md",
+              "note": "conventional path"
+            }
+          ],
+          "packageManager": "npm"
+        }
+      ],
+      "boundaries": [],
+      "documentSurfaces": [
+        {
+          "id": "document-surface:AGENTS.md",
+          "kind": "document-surface",
+          "path": "AGENTS.md",
+          "paths": [
+            "AGENTS.md"
+          ],
+          "headings": [],
+          "linkedPaths": [],
+          "commandBlocks": [],
+          "roleClaims": [
+            {
+              "kind": "document-role",
+              "value": "agent-instruction",
+              "confidence": "high",
+              "signals": [
+                "instruction detector"
+              ],
+              "sources": [
+                {
+                  "detector": "repository-evidence",
+                  "kind": "inference",
+                  "path": "AGENTS.md"
+                }
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "AGENTS.md"
+            }
+          ]
+        },
+        {
+          "id": "document-surface:README.md",
+          "kind": "document-surface",
+          "path": "README.md",
+          "paths": [
+            "README.md"
+          ],
+          "title": "Demo",
+          "headings": [
+            "Demo"
+          ],
+          "linkedPaths": [],
+          "commandBlocks": [],
+          "roleClaims": [
+            {
+              "kind": "document-role",
+              "value": "entrypoint",
+              "confidence": "medium",
+              "signals": [
+                "root README filename"
+              ],
+              "sources": [
+                {
+                  "detector": "repository-evidence",
+                  "kind": "file",
+                  "path": "README.md"
+                }
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "README.md"
+            }
+          ]
+        }
+      ],
+      "verificationSurfaces": [
+        {
+          "id": "verification-surface:commands:lint",
+          "kind": "verification-surface",
+          "paths": [
+            "package.json"
+          ],
+          "rootIds": [],
+          "commandKind": "lint",
+          "confidence": "low",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "manifest",
+              "path": "package.json",
+              "note": "repository-level command evidence; root coverage not inferred"
+            }
+          ]
+        },
+        {
+          "id": "verification-surface:commands:test",
+          "kind": "verification-surface",
+          "paths": [
+            "package.json"
+          ],
+          "rootIds": [],
+          "commandKind": "test",
+          "confidence": "low",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "manifest",
+              "path": "package.json",
+              "note": "repository-level command evidence; root coverage not inferred"
+            }
+          ]
+        }
+      ],
+      "topology": {
+        "dependencyHints": [],
+        "testProximityHints": [],
+        "documentationProximityHints": [],
+        "generatedPressure": [
+          {
+            "id": "generated-pressure:root:.",
+            "kind": "generated-pressure",
+            "paths": [
+              "."
+            ],
+            "rootId": "root:.",
+            "generatedFileRatio": 0,
+            "generatedBytesRatio": 0,
+            "confidence": "high",
+            "sources": [
+              {
+                "detector": "repository-evidence",
+                "kind": "file",
+                "path": "."
+              }
+            ]
+          }
+        ],
+        "metrics": {
+          "rootCount": 1,
+          "languageCount": 1,
+          "generatedFileRatio": 0,
+          "largestRootShare": 0,
+          "publicApiSurfaceCount": 0,
+          "rootsWithoutLocalTests": 0,
+          "rootsWithoutLocalDocs": 0,
+          "verificationMappedRootCount": 0
+        }
+      }
+    },
+    "designState": {
+      "strengths": [
+        {
+          "id": "design-state:documentation-evidence",
+          "category": "documentation-evidence",
+          "title": "Documentation role evidence found",
+          "severity": "info",
+          "summary": "2 document surface(s) have deterministic role evidence.",
+          "evidenceIds": [
+            "document-surface:AGENTS.md",
+            "document-surface:README.md"
+          ],
+          "paths": [
+            "AGENTS.md",
+            "README.md"
+          ],
+          "confidence": "medium",
+          "gateable": false
+        },
+        {
+          "id": "design-state:verification-map",
+          "category": "verification-locality",
+          "title": "Verification surfaces detected",
+          "severity": "info",
+          "summary": "2 command or CI verification surface(s) were detected.",
+          "evidenceIds": [
+            "verification-surface:commands:lint",
+            "verification-surface:commands:test"
+          ],
+          "paths": [
+            "package.json"
+          ],
+          "confidence": "medium",
+          "gateable": false
+        }
+      ],
+      "risks": [],
+      "ambiguities": []
+    },
+    "dimensions": [
+      {
+        "category": "docs",
+        "score": 94,
+        "findingCount": 3,
+        "bySeverity": {
+          "info": 3,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "commands",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "ci",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "instructions",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "files",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "safety",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      }
+    ],
+    "autonomyEnvelope": [
+      {
+        "stage": "orient",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "bootstrap",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "navigate",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "edit",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "verify",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "review",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "merge",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "deploy",
+        "status": "ready",
+        "findingIds": []
+      }
+    ],
+    "reportContract": {
+      "schemaVersion": "local-readiness/v2",
+      "experimentalFields": [
+        "repositoryEvidence",
+        "designState",
+        "dimensions",
+        "instructionContradictions",
+        "hookExecutionRisks",
+        "autonomyEnvelope",
+        "readinessProfile"
+      ]
+    },
+    "findings": [
+      {
+        "id": "docs.pull-request-template.missing",
+        "title": "No pull-request template detected",
+        "severity": "info",
+        "recommendation": "Add a pull-request template (.github/pull_request_template.md) describing the evidence a PR description should include (files changed and why, verification commands run, known skipped checks)."
+      },
+      {
+        "id": "governance.codeowners.protected-path-gap:.github/**",
+        "title": "CODEOWNERS does not cover a structurally high-risk path",
+        "severity": "info",
+        "path": ".github/**",
+        "recommendation": "Add a CODEOWNERS pattern covering \\".github/**\\" — this path is treated as high-risk (agent/CI config, auth, migrations, deploy, ...) regardless of how often it changes."
+      },
+      {
+        "id": "governance.codeowners.protected-path-gap:AGENTS.md",
+        "title": "CODEOWNERS does not cover a structurally high-risk path",
+        "severity": "info",
+        "path": "AGENTS.md",
+        "recommendation": "Add a CODEOWNERS pattern covering \\"AGENTS.md\\" — this path is treated as high-risk (agent/CI config, auth, migrations, deploy, ...) regardless of how often it changes."
+      }
+    ],
+    "readinessProfile": {
+      "readiness": [
+        {
+          "stage": "orient",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "bootstrap",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "navigate",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "edit",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "verify",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "review",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "merge",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "deploy",
+          "status": "ready",
+          "findingIds": []
+        }
+      ],
+      "risk": {
+        "verdict": "low",
+        "confidence": "high",
+        "evidenceRefs": [],
+        "explanation": "no capability surfaces detected"
+      },
+      "coverage": {
+        "applicableSurfaces": 5,
+        "assessedSurfaces": 4,
+        "ratio": 0.8,
+        "gaps": [
+          {
+            "surface": "ci-workflows",
+            "reason": "1 workflow file with no recognized jobs"
+          }
+        ]
+      },
+      "observability": {
+        "verifiedLocally": [
+          "instruction-surfaces",
+          "command-ecosystems",
+          "documentation-roles",
+          "repository-topology"
+        ],
+        "notFound": [
+          "capability-surfaces",
+          "governance"
+        ],
+        "notObservableLocally": [
+          "Default-branch protection",
+          "Required status checks",
+          "Required CODEOWNER review",
+          "Environment approval rules",
+          "Production secret scopes",
+          "Deployment permission boundaries"
+        ]
+      },
+      "calibrationConfidence": "low"
+    }
   },
   "headReport": {
     "root": "<WORKTREE>",
@@ -155,10 +626,29 @@ exports[`diff output snapshots summary and markdown for a regression between two
         "lint",
         "test"
       ],
+      "makeTargets": [],
       "hasBuild": false,
       "hasTest": true,
       "hasLint": true,
       "hasTypeCheck": false
+    },
+    "commandReferences": [],
+    "instructionContradictions": [],
+    "governance": {
+      "protectedPathCoverage": [
+        {
+          "pattern": ".github/**",
+          "covered": false,
+          "owners": [],
+          "singleOwnerRisk": false
+        },
+        {
+          "pattern": "AGENTS.md",
+          "covered": false,
+          "owners": [],
+          "singleOwnerRisk": false
+        }
+      ]
     },
     "ci": {
       "workflowFiles": [
@@ -201,8 +691,9 @@ exports[`diff output snapshots summary and markdown for a regression between two
     ],
     "capabilities": [],
     "safetySignals": [],
+    "hookExecutionRisks": [],
     "summary": {
-      "score": 82,
+      "score": 76,
       "totalFiles": 3,
       "totalBytes": 68,
       "sourceFiles": 0,
@@ -213,14 +704,422 @@ exports[`diff output snapshots summary and markdown for a regression between two
       "generatedFiles": 0,
       "minifiedFiles": 0
     },
+    "repositoryEvidence": {
+      "roots": [
+        {
+          "id": "root:.",
+          "kind": "repository-root",
+          "rootKind": "package",
+          "path": ".",
+          "paths": [
+            "."
+          ],
+          "languages": [
+            "TypeScript"
+          ],
+          "manifests": [
+            "package.json"
+          ],
+          "sourceFiles": 0,
+          "testFiles": 0,
+          "documentationFiles": 1,
+          "generatedFiles": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "AGENTS.md",
+              "note": "conventional path"
+            },
+            {
+              "detector": "repository-evidence",
+              "kind": "manifest",
+              "path": "package.json"
+            }
+          ],
+          "packageManager": "npm"
+        }
+      ],
+      "boundaries": [],
+      "documentSurfaces": [
+        {
+          "id": "document-surface:AGENTS.md",
+          "kind": "document-surface",
+          "path": "AGENTS.md",
+          "paths": [
+            "AGENTS.md"
+          ],
+          "headings": [],
+          "linkedPaths": [],
+          "commandBlocks": [],
+          "roleClaims": [
+            {
+              "kind": "document-role",
+              "value": "agent-instruction",
+              "confidence": "high",
+              "signals": [
+                "instruction detector"
+              ],
+              "sources": [
+                {
+                  "detector": "repository-evidence",
+                  "kind": "inference",
+                  "path": "AGENTS.md"
+                }
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "AGENTS.md"
+            }
+          ]
+        }
+      ],
+      "verificationSurfaces": [
+        {
+          "id": "verification-surface:commands:lint",
+          "kind": "verification-surface",
+          "paths": [
+            "package.json"
+          ],
+          "rootIds": [],
+          "commandKind": "lint",
+          "confidence": "low",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "manifest",
+              "path": "package.json",
+              "note": "repository-level command evidence; root coverage not inferred"
+            }
+          ]
+        },
+        {
+          "id": "verification-surface:commands:test",
+          "kind": "verification-surface",
+          "paths": [
+            "package.json"
+          ],
+          "rootIds": [],
+          "commandKind": "test",
+          "confidence": "low",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "manifest",
+              "path": "package.json",
+              "note": "repository-level command evidence; root coverage not inferred"
+            }
+          ]
+        }
+      ],
+      "topology": {
+        "dependencyHints": [],
+        "testProximityHints": [],
+        "documentationProximityHints": [],
+        "generatedPressure": [
+          {
+            "id": "generated-pressure:root:.",
+            "kind": "generated-pressure",
+            "paths": [
+              "."
+            ],
+            "rootId": "root:.",
+            "generatedFileRatio": 0,
+            "generatedBytesRatio": 0,
+            "confidence": "high",
+            "sources": [
+              {
+                "detector": "repository-evidence",
+                "kind": "file",
+                "path": "."
+              }
+            ]
+          }
+        ],
+        "metrics": {
+          "rootCount": 1,
+          "languageCount": 1,
+          "generatedFileRatio": 0,
+          "largestRootShare": 0,
+          "publicApiSurfaceCount": 0,
+          "rootsWithoutLocalTests": 0,
+          "rootsWithoutLocalDocs": 0,
+          "verificationMappedRootCount": 0
+        }
+      }
+    },
+    "designState": {
+      "strengths": [
+        {
+          "id": "design-state:documentation-evidence",
+          "category": "documentation-evidence",
+          "title": "Documentation role evidence found",
+          "severity": "info",
+          "summary": "1 document surface(s) have deterministic role evidence.",
+          "evidenceIds": [
+            "document-surface:AGENTS.md"
+          ],
+          "paths": [
+            "AGENTS.md"
+          ],
+          "confidence": "medium",
+          "gateable": false
+        },
+        {
+          "id": "design-state:verification-map",
+          "category": "verification-locality",
+          "title": "Verification surfaces detected",
+          "severity": "info",
+          "summary": "2 command or CI verification surface(s) were detected.",
+          "evidenceIds": [
+            "verification-surface:commands:lint",
+            "verification-surface:commands:test"
+          ],
+          "paths": [
+            "package.json"
+          ],
+          "confidence": "medium",
+          "gateable": false
+        }
+      ],
+      "risks": [],
+      "ambiguities": []
+    },
+    "dimensions": [
+      {
+        "category": "docs",
+        "score": 76,
+        "findingCount": 4,
+        "bySeverity": {
+          "info": 3,
+          "warning": 0,
+          "error": 1
+        }
+      },
+      {
+        "category": "commands",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "ci",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "instructions",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "files",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      },
+      {
+        "category": "safety",
+        "score": 100,
+        "findingCount": 0,
+        "bySeverity": {
+          "info": 0,
+          "warning": 0,
+          "error": 0
+        }
+      }
+    ],
+    "autonomyEnvelope": [
+      {
+        "stage": "orient",
+        "status": "blocked",
+        "findingIds": [
+          "docs.readme.missing"
+        ]
+      },
+      {
+        "stage": "bootstrap",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "navigate",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "edit",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "verify",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "review",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "merge",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "deploy",
+        "status": "ready",
+        "findingIds": []
+      }
+    ],
+    "reportContract": {
+      "schemaVersion": "local-readiness/v2",
+      "experimentalFields": [
+        "repositoryEvidence",
+        "designState",
+        "dimensions",
+        "instructionContradictions",
+        "hookExecutionRisks",
+        "autonomyEnvelope",
+        "readinessProfile"
+      ]
+    },
     "findings": [
+      {
+        "id": "docs.pull-request-template.missing",
+        "title": "No pull-request template detected",
+        "severity": "info",
+        "recommendation": "Add a pull-request template (.github/pull_request_template.md) describing the evidence a PR description should include (files changed and why, verification commands run, known skipped checks)."
+      },
       {
         "id": "docs.readme.missing",
         "title": "Repository has no README",
         "severity": "error",
         "recommendation": "Add a root README with purpose, setup, validation commands, and common agent entrypoints."
+      },
+      {
+        "id": "governance.codeowners.protected-path-gap:.github/**",
+        "title": "CODEOWNERS does not cover a structurally high-risk path",
+        "severity": "info",
+        "path": ".github/**",
+        "recommendation": "Add a CODEOWNERS pattern covering \\".github/**\\" — this path is treated as high-risk (agent/CI config, auth, migrations, deploy, ...) regardless of how often it changes."
+      },
+      {
+        "id": "governance.codeowners.protected-path-gap:AGENTS.md",
+        "title": "CODEOWNERS does not cover a structurally high-risk path",
+        "severity": "info",
+        "path": "AGENTS.md",
+        "recommendation": "Add a CODEOWNERS pattern covering \\"AGENTS.md\\" — this path is treated as high-risk (agent/CI config, auth, migrations, deploy, ...) regardless of how often it changes."
       }
-    ]
+    ],
+    "readinessProfile": {
+      "readiness": [
+        {
+          "stage": "orient",
+          "status": "blocked",
+          "findingIds": [
+            "docs.readme.missing"
+          ]
+        },
+        {
+          "stage": "bootstrap",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "navigate",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "edit",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "verify",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "review",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "merge",
+          "status": "ready",
+          "findingIds": []
+        },
+        {
+          "stage": "deploy",
+          "status": "ready",
+          "findingIds": []
+        }
+      ],
+      "risk": {
+        "verdict": "low",
+        "confidence": "high",
+        "evidenceRefs": [],
+        "explanation": "no capability surfaces detected"
+      },
+      "coverage": {
+        "applicableSurfaces": 5,
+        "assessedSurfaces": 4,
+        "ratio": 0.8,
+        "gaps": [
+          {
+            "surface": "ci-workflows",
+            "reason": "1 workflow file with no recognized jobs"
+          }
+        ]
+      },
+      "observability": {
+        "verifiedLocally": [
+          "instruction-surfaces",
+          "command-ecosystems",
+          "documentation-roles",
+          "repository-topology"
+        ],
+        "notFound": [
+          "capability-surfaces",
+          "governance"
+        ],
+        "notObservableLocally": [
+          "Default-branch protection",
+          "Required status checks",
+          "Required CODEOWNER review",
+          "Environment approval rules",
+          "Production secret scopes",
+          "Deployment permission boundaries"
+        ]
+      },
+      "calibrationConfidence": "low"
+    }
   },
   "summary": {
     "scoreDelta": -18,
@@ -292,11 +1191,15 @@ exports[`scan output snapshots bad-repo compact json 1`] = `
     "scripts": [
       "build"
     ],
+    "makeTargets": [],
     "hasBuild": true,
     "hasTest": false,
     "hasLint": false,
     "hasTypeCheck": false
   },
+  "commandReferences": [],
+  "instructionContradictions": [],
+  "governance": {},
   "ci": {
     "workflowFiles": [],
     "workflows": [],
@@ -310,8 +1213,9 @@ exports[`scan output snapshots bad-repo compact json 1`] = `
   "instructions": [],
   "capabilities": [],
   "safetySignals": [],
+  "hookExecutionRisks": [],
   "summary": {
-    "score": 36,
+    "score": 34,
     "totalFiles": 2,
     "totalBytes": 77,
     "sourceFiles": 1,
@@ -321,6 +1225,382 @@ exports[`scan output snapshots bad-repo compact json 1`] = `
     "binaryFiles": 0,
     "generatedFiles": 0,
     "minifiedFiles": 0
+  },
+  "repositoryEvidence": {
+    "roots": [
+      {
+        "id": "root:.",
+        "kind": "repository-root",
+        "rootKind": "package",
+        "path": ".",
+        "paths": [
+          "."
+        ],
+        "languages": [
+          "TypeScript"
+        ],
+        "manifests": [
+          "package.json"
+        ],
+        "sourceFiles": 0,
+        "testFiles": 0,
+        "documentationFiles": 0,
+        "generatedFiles": 0,
+        "confidence": "high",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json"
+          }
+        ],
+        "packageManager": "npm"
+      },
+      {
+        "id": "root:src",
+        "kind": "repository-root",
+        "rootKind": "unknown",
+        "path": "src",
+        "paths": [
+          "src"
+        ],
+        "languages": [
+          "TypeScript"
+        ],
+        "manifests": [],
+        "sourceFiles": 1,
+        "testFiles": 0,
+        "documentationFiles": 0,
+        "generatedFiles": 0,
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "src/index.ts",
+            "note": "conventional path"
+          }
+        ]
+      }
+    ],
+    "boundaries": [
+      {
+        "id": "architecture-boundary:src/index.ts",
+        "kind": "architecture-boundary",
+        "path": "src/index.ts",
+        "paths": [
+          "src/index.ts"
+        ],
+        "role": "entrypoint",
+        "signals": [
+          "entrypoint path signal"
+        ],
+        "confidence": "high",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "src/index.ts"
+          }
+        ]
+      }
+    ],
+    "documentSurfaces": [],
+    "verificationSurfaces": [
+      {
+        "id": "verification-surface:commands:build",
+        "kind": "verification-surface",
+        "paths": [
+          "package.json"
+        ],
+        "rootIds": [],
+        "commandKind": "build",
+        "confidence": "low",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json",
+            "note": "repository-level command evidence; root coverage not inferred"
+          }
+        ]
+      }
+    ],
+    "topology": {
+      "dependencyHints": [],
+      "testProximityHints": [
+        {
+          "id": "test-proximity:root:src",
+          "kind": "test-proximity-hint",
+          "paths": [
+            "src"
+          ],
+          "rootId": "root:src",
+          "nearbyTestPaths": [],
+          "confidence": "medium",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "src",
+              "note": "path proximity"
+            }
+          ]
+        }
+      ],
+      "documentationProximityHints": [
+        {
+          "id": "documentation-proximity:root:src",
+          "kind": "documentation-proximity-hint",
+          "paths": [
+            "src"
+          ],
+          "rootId": "root:src",
+          "documentSurfaceIds": [],
+          "roleClaims": [],
+          "confidence": "low",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "src",
+              "note": "path proximity"
+            }
+          ]
+        }
+      ],
+      "generatedPressure": [
+        {
+          "id": "generated-pressure:root:.",
+          "kind": "generated-pressure",
+          "paths": [
+            "."
+          ],
+          "rootId": "root:.",
+          "generatedFileRatio": 0,
+          "generatedBytesRatio": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "."
+            }
+          ]
+        },
+        {
+          "id": "generated-pressure:root:src",
+          "kind": "generated-pressure",
+          "paths": [
+            "src"
+          ],
+          "rootId": "root:src",
+          "generatedFileRatio": 0,
+          "generatedBytesRatio": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "src"
+            }
+          ]
+        }
+      ],
+      "metrics": {
+        "rootCount": 2,
+        "languageCount": 1,
+        "sourceToNearbyTestRatio": 0,
+        "docsToSourceProximityRatio": 0,
+        "generatedFileRatio": 0,
+        "largestRootShare": 1,
+        "publicApiSurfaceCount": 0,
+        "rootsWithoutLocalTests": 1,
+        "rootsWithoutLocalDocs": 1,
+        "verificationMappedRootCount": 0
+      }
+    }
+  },
+  "designState": {
+    "strengths": [
+      {
+        "id": "design-state:verification-map",
+        "category": "verification-locality",
+        "title": "Verification surfaces detected",
+        "severity": "info",
+        "summary": "1 command or CI verification surface(s) were detected.",
+        "evidenceIds": [
+          "verification-surface:commands:build"
+        ],
+        "paths": [
+          "package.json"
+        ],
+        "confidence": "medium",
+        "gateable": false
+      }
+    ],
+    "risks": [
+      {
+        "id": "design-state:verification-locality:unmapped-tests",
+        "category": "verification-locality",
+        "title": "Some source roots have no nearby tests",
+        "severity": "info",
+        "summary": "1 source root(s) have no path-local test evidence.",
+        "evidenceIds": [
+          "test-proximity:root:src"
+        ],
+        "paths": [
+          "src"
+        ],
+        "confidence": "medium",
+        "recommendation": "Add local tests or document the verification command that covers these roots.",
+        "gateable": false
+      }
+    ],
+    "ambiguities": [
+      {
+        "id": "design-state:documentation-proximity:unmapped-docs",
+        "category": "documentation-evidence",
+        "title": "Some source roots have no nearby documentation",
+        "severity": "info",
+        "summary": "1 source root(s) have no path-local document role evidence.",
+        "evidenceIds": [
+          "documentation-proximity:root:src"
+        ],
+        "paths": [
+          "src"
+        ],
+        "confidence": "low",
+        "recommendation": "Link architecture, development, or API docs to the affected roots.",
+        "gateable": false
+      }
+    ]
+  },
+  "dimensions": [
+    {
+      "category": "docs",
+      "score": 80,
+      "findingCount": 2,
+      "bySeverity": {
+        "info": 1,
+        "warning": 0,
+        "error": 1
+      }
+    },
+    {
+      "category": "commands",
+      "score": 68,
+      "findingCount": 3,
+      "bySeverity": {
+        "info": 0,
+        "warning": 2,
+        "error": 1
+      }
+    },
+    {
+      "category": "ci",
+      "score": 93,
+      "findingCount": 1,
+      "bySeverity": {
+        "info": 0,
+        "warning": 1,
+        "error": 0
+      }
+    },
+    {
+      "category": "instructions",
+      "score": 93,
+      "findingCount": 1,
+      "bySeverity": {
+        "info": 0,
+        "warning": 1,
+        "error": 0
+      }
+    },
+    {
+      "category": "files",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    },
+    {
+      "category": "safety",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    }
+  ],
+  "autonomyEnvelope": [
+    {
+      "stage": "orient",
+      "status": "blocked",
+      "findingIds": [
+        "docs.readme.missing"
+      ]
+    },
+    {
+      "stage": "bootstrap",
+      "status": "blocked",
+      "findingIds": [
+        "commands.test.missing"
+      ]
+    },
+    {
+      "stage": "navigate",
+      "status": "not_yet_ready",
+      "findingIds": [
+        "instructions.missing"
+      ]
+    },
+    {
+      "stage": "edit",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "verify",
+      "status": "blocked",
+      "findingIds": [
+        "commands.test.missing"
+      ]
+    },
+    {
+      "stage": "review",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "merge",
+      "status": "not_yet_ready",
+      "findingIds": [
+        "ci.workflow.missing"
+      ]
+    },
+    {
+      "stage": "deploy",
+      "status": "ready",
+      "findingIds": []
+    }
+  ],
+  "reportContract": {
+    "schemaVersion": "local-readiness/v2",
+    "experimentalFields": [
+      "repositoryEvidence",
+      "designState",
+      "dimensions",
+      "instructionContradictions",
+      "hookExecutionRisks",
+      "autonomyEnvelope",
+      "readinessProfile"
+    ]
   },
   "findings": [
     {
@@ -348,6 +1628,12 @@ exports[`scan output snapshots bad-repo compact json 1`] = `
       "recommendation": "Expose a type-check command and run it in CI."
     },
     {
+      "id": "docs.pull-request-template.missing",
+      "title": "No pull-request template detected",
+      "severity": "info",
+      "recommendation": "Add a pull-request template (.github/pull_request_template.md) describing the evidence a PR description should include (files changed and why, verification commands run, known skipped checks)."
+    },
+    {
       "id": "docs.readme.missing",
       "title": "Repository has no README",
       "severity": "error",
@@ -359,40 +1645,186 @@ exports[`scan output snapshots bad-repo compact json 1`] = `
       "severity": "warning",
       "recommendation": "Add AGENTS.md or the relevant agent-specific instruction file with repo conventions and validation commands."
     }
-  ]
+  ],
+  "readinessProfile": {
+    "readiness": [
+      {
+        "stage": "orient",
+        "status": "blocked",
+        "findingIds": [
+          "docs.readme.missing"
+        ]
+      },
+      {
+        "stage": "bootstrap",
+        "status": "blocked",
+        "findingIds": [
+          "commands.test.missing"
+        ]
+      },
+      {
+        "stage": "navigate",
+        "status": "not_yet_ready",
+        "findingIds": [
+          "instructions.missing"
+        ]
+      },
+      {
+        "stage": "edit",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "verify",
+        "status": "blocked",
+        "findingIds": [
+          "commands.test.missing"
+        ]
+      },
+      {
+        "stage": "review",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "merge",
+        "status": "not_yet_ready",
+        "findingIds": [
+          "ci.workflow.missing"
+        ]
+      },
+      {
+        "stage": "deploy",
+        "status": "ready",
+        "findingIds": []
+      }
+    ],
+    "risk": {
+      "verdict": "low",
+      "confidence": "high",
+      "evidenceRefs": [],
+      "explanation": "no capability surfaces detected"
+    },
+    "coverage": {
+      "applicableSurfaces": 2,
+      "assessedSurfaces": 2,
+      "ratio": 1,
+      "gaps": []
+    },
+    "observability": {
+      "verifiedLocally": [
+        "command-ecosystems",
+        "repository-topology"
+      ],
+      "notFound": [
+        "instruction-surfaces",
+        "ci-workflows",
+        "capability-surfaces",
+        "governance",
+        "documentation-roles"
+      ],
+      "notObservableLocally": [
+        "Default-branch protection",
+        "Required status checks",
+        "Required CODEOWNER review",
+        "Environment approval rules",
+        "Production secret scopes",
+        "Deployment permission boundaries"
+      ]
+    },
+    "calibrationConfidence": "low"
+  }
 }"
 `;
 
 exports[`scan output snapshots bad-repo console summary 1`] = `
-"AgentReady score: 36/100
+"Repository Agent Readiness Profile
+Capability risk: low (no capability surfaces detected)
+Scanner coverage: 100% (2/2 applicable surfaces assessed)
+Calibration confidence: low
+AgentReady score: 34/100 (secondary; the profile above is the primary signal)
 Files: 2 (1 source, 0 tests, 0 docs)
 Capabilities: 0, safety signals: 0
 CI: no workflows detected
-Findings: 6
+Dimensions: docs 80 (1 error, 1 info), commands 68 (1 error, 2 warning), ci 93 (1 warning), instructions 93 (1 warning), files 100, safety 100
+Autonomy: orient (blocked), bootstrap (blocked), navigate (not yet ready), verify (blocked), merge (not yet ready)
+Findings: 7
 - [warning] No CI workflow detected
 - [warning] No lint command detected
 - [error] No test command detected
 - [warning] TypeScript repository has no type-check command
+- [info] No pull-request template detected
 - [error] Repository has no README
-- [warning] No agent instruction surface detected"
+- [warning] No agent instruction surface detected
+Not verified from repository contents: Default-branch protection, Required status checks, Required CODEOWNER review, Environment approval rules, Production secret scopes, Deployment permission boundaries"
 `;
 
 exports[`scan output snapshots bad-repo markdown 1`] = `
 "## AgentReady scan
 
-Score: **36/100**
+### Repository Agent Readiness Profile
+The primary, multi-axis readiness view; the single score below is a secondary, experimental signal.
+- **Capability risk:** low — no capability surfaces detected
+- **Scanner coverage:** 100% (2/2 applicable surfaces assessed)
+- **Calibration confidence:** low
+- **Per-stage readiness:** see the Autonomy envelope section below.
+
+Score (secondary, experimental): **34/100**
 Files: 2 total, 1 source, 0 tests, 0 docs
 Capabilities: 0; safety signals: 0
 CI: no workflows detected
-Findings: 6
+Findings: 7
+
+### Dimension scores
+- docs: **80/100** (1 error, 0 warning, 1 info)
+- commands: **68/100** (1 error, 2 warning, 0 info)
+- ci: **93/100** (0 error, 1 warning, 0 info)
+- instructions: **93/100** (0 error, 1 warning, 0 info)
+- files: **100/100** (no findings)
+- safety: **100/100** (no findings)
+
+### Autonomy envelope
+What level of agent autonomy this repository is ready for, derived from findings (not a separate score):
+- orient: ⛔ blocked — docs.readme.missing
+- bootstrap: ⛔ blocked — commands.test.missing
+- navigate: ⚠️ not yet ready — instructions.missing
+- edit: ✅ ready
+- verify: ⛔ blocked — commands.test.missing
+- review: ✅ ready
+- merge: ⚠️ not yet ready — ci.workflow.missing
+- deploy: ✅ ready
+
+### Repository topology
+Roots: 2; languages: 1; roots without local tests: 1; roots without local docs: 1
+- \`.\`: package, TypeScript, 0 source, 0 tests, 0 docs
+- \`src\`: unknown, TypeScript, 1 source, 0 tests, 0 docs
+
+### Design-state strengths
+- **INFO** verification-locality: 1 command or CI verification surface(s) were detected. Paths: \`package.json\`.
+
+### Design-state risks
+- **INFO** verification-locality: 1 source root(s) have no path-local test evidence. Paths: \`src\`.
+
+### Design-state ambiguities
+- **INFO** documentation-evidence: 1 source root(s) have no path-local document role evidence. Paths: \`src\`.
 
 ### Findings
 - **WARNING**: No CI workflow detected. Add CI that runs install, lint, type-check, tests, and build where applicable.
 - **WARNING**: No lint command detected. Expose a lint command so agents can catch style and static analysis regressions before review.
 - **ERROR**: No test command detected. Expose a stable test command in package scripts or documented project tooling.
 - **WARNING**: TypeScript repository has no type-check command. Expose a type-check command and run it in CI.
+- **INFO**: No pull-request template detected. Add a pull-request template (.github/pull_request_template.md) describing the evidence a PR description should include (files changed and why, verification commands run, known skipped checks).
 - **ERROR**: Repository has no README. Add a root README with purpose, setup, validation commands, and common agent entrypoints.
-- **WARNING**: No agent instruction surface detected. Add AGENTS.md or the relevant agent-specific instruction file with repo conventions and validation commands."
+- **WARNING**: No agent instruction surface detected. Add AGENTS.md or the relevant agent-specific instruction file with repo conventions and validation commands.
+
+### Not verified from repository contents
+AgentReady scans repository contents only, with no network calls — these platform-level controls cannot be confirmed or denied from a local scan:
+- Default-branch protection
+- Required status checks
+- Required CODEOWNER review
+- Environment approval rules
+- Production secret scopes
+- Deployment permission boundaries"
 `;
 
 exports[`scan output snapshots bad-repo sarif 1`] = `
@@ -444,6 +1876,16 @@ exports[`scan output snapshots bad-repo sarif 1`] = `
               },
               "defaultConfiguration": {
                 "level": "warning"
+              }
+            },
+            {
+              "id": "docs.pull-request-template.missing",
+              "name": "docs.pull-request-template.missing",
+              "shortDescription": {
+                "text": "No pull-request template detected"
+              },
+              "defaultConfiguration": {
+                "level": "note"
               }
             },
             {
@@ -499,6 +1941,13 @@ exports[`scan output snapshots bad-repo sarif 1`] = `
           }
         },
         {
+          "ruleId": "docs.pull-request-template.missing",
+          "level": "note",
+          "message": {
+            "text": "No pull-request template detected. Add a pull-request template (.github/pull_request_template.md) describing the evidence a PR description should include (files changed and why, verification commands run, known skipped checks)."
+          }
+        },
+        {
           "ruleId": "docs.readme.missing",
           "level": "error",
           "message": {
@@ -543,10 +1992,35 @@ exports[`scan output snapshots good-repo compact json 1`] = `
       "test",
       "type-check"
     ],
+    "makeTargets": [],
     "hasBuild": true,
     "hasTest": true,
     "hasLint": true,
     "hasTypeCheck": true
+  },
+  "commandReferences": [],
+  "instructionContradictions": [],
+  "governance": {
+    "codeownersPath": "CODEOWNERS",
+    "pullRequestTemplatePath": ".github/pull_request_template.md",
+    "protectedPathCoverage": [
+      {
+        "pattern": ".github/**",
+        "covered": true,
+        "owners": [
+          "@napetrov/maintainers"
+        ],
+        "singleOwnerRisk": false
+      },
+      {
+        "pattern": "AGENTS.md",
+        "covered": true,
+        "owners": [
+          "@napetrov/maintainers"
+        ],
+        "singleOwnerRisk": false
+      }
+    ]
   },
   "ci": {
     "workflowFiles": [
@@ -607,41 +2081,1006 @@ exports[`scan output snapshots good-repo compact json 1`] = `
   ],
   "capabilities": [],
   "safetySignals": [],
+  "hookExecutionRisks": [],
   "summary": {
     "score": 100,
-    "totalFiles": 7,
-    "totalBytes": 913,
+    "totalFiles": 9,
+    "totalBytes": 1069,
     "sourceFiles": 1,
     "testFiles": 1,
-    "documentationFiles": 3,
+    "documentationFiles": 4,
     "largeFiles": 0,
     "binaryFiles": 0,
     "generatedFiles": 0,
     "minifiedFiles": 0
   },
-  "findings": []
+  "repositoryEvidence": {
+    "roots": [
+      {
+        "id": "root:__tests__",
+        "kind": "repository-root",
+        "rootKind": "test",
+        "path": "__tests__",
+        "paths": [
+          "__tests__"
+        ],
+        "languages": [
+          "TypeScript"
+        ],
+        "manifests": [],
+        "sourceFiles": 0,
+        "testFiles": 1,
+        "documentationFiles": 0,
+        "generatedFiles": 0,
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "__tests__/index.test.ts",
+            "note": "conventional path"
+          }
+        ]
+      },
+      {
+        "id": "root:.",
+        "kind": "repository-root",
+        "rootKind": "package",
+        "path": ".",
+        "paths": [
+          "."
+        ],
+        "languages": [
+          "TypeScript"
+        ],
+        "manifests": [
+          "package.json"
+        ],
+        "sourceFiles": 0,
+        "testFiles": 0,
+        "documentationFiles": 3,
+        "generatedFiles": 0,
+        "confidence": "high",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": ".github/pull_request_template.md",
+            "note": "conventional path"
+          },
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "AGENTS.md",
+            "note": "conventional path"
+          },
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json"
+          },
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "README.md",
+            "note": "conventional path"
+          }
+        ],
+        "packageManager": "npm"
+      },
+      {
+        "id": "root:docs",
+        "kind": "repository-root",
+        "rootKind": "docs",
+        "path": "docs",
+        "paths": [
+          "docs"
+        ],
+        "languages": [],
+        "manifests": [],
+        "sourceFiles": 0,
+        "testFiles": 0,
+        "documentationFiles": 1,
+        "generatedFiles": 0,
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "docs/ARCHITECTURE.md",
+            "note": "conventional path"
+          }
+        ]
+      },
+      {
+        "id": "root:src",
+        "kind": "repository-root",
+        "rootKind": "unknown",
+        "path": "src",
+        "paths": [
+          "src"
+        ],
+        "languages": [
+          "TypeScript"
+        ],
+        "manifests": [],
+        "sourceFiles": 1,
+        "testFiles": 0,
+        "documentationFiles": 0,
+        "generatedFiles": 0,
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "src/index.ts",
+            "note": "conventional path"
+          }
+        ]
+      }
+    ],
+    "boundaries": [
+      {
+        "id": "architecture-boundary:__tests__/index.test.ts",
+        "kind": "architecture-boundary",
+        "path": "__tests__/index.test.ts",
+        "paths": [
+          "__tests__/index.test.ts"
+        ],
+        "role": "test-support",
+        "signals": [
+          "test-support path signal"
+        ],
+        "confidence": "high",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "__tests__/index.test.ts"
+          }
+        ]
+      },
+      {
+        "id": "architecture-boundary:src/index.ts",
+        "kind": "architecture-boundary",
+        "path": "src/index.ts",
+        "paths": [
+          "src/index.ts"
+        ],
+        "role": "entrypoint",
+        "signals": [
+          "entrypoint path signal"
+        ],
+        "confidence": "high",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "inference",
+            "path": "src/index.ts"
+          }
+        ]
+      }
+    ],
+    "documentSurfaces": [
+      {
+        "id": "document-surface:.github/pull_request_template.md",
+        "kind": "document-surface",
+        "path": ".github/pull_request_template.md",
+        "paths": [
+          ".github/pull_request_template.md"
+        ],
+        "title": "What changed and why",
+        "headings": [
+          "What changed and why",
+          "Verification",
+          "Known skipped checks"
+        ],
+        "linkedPaths": [],
+        "commandBlocks": [],
+        "roleClaims": [],
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "file",
+            "path": ".github/pull_request_template.md"
+          }
+        ]
+      },
+      {
+        "id": "document-surface:AGENTS.md",
+        "kind": "document-surface",
+        "path": "AGENTS.md",
+        "paths": [
+          "AGENTS.md"
+        ],
+        "title": "Agent Instructions",
+        "headings": [
+          "Agent Instructions"
+        ],
+        "linkedPaths": [],
+        "commandBlocks": [],
+        "roleClaims": [
+          {
+            "kind": "document-role",
+            "value": "agent-instruction",
+            "confidence": "high",
+            "signals": [
+              "instruction detector"
+            ],
+            "sources": [
+              {
+                "detector": "repository-evidence",
+                "kind": "inference",
+                "path": "AGENTS.md"
+              }
+            ]
+          }
+        ],
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "file",
+            "path": "AGENTS.md"
+          }
+        ]
+      },
+      {
+        "id": "document-surface:docs/ARCHITECTURE.md",
+        "kind": "document-surface",
+        "path": "docs/ARCHITECTURE.md",
+        "paths": [
+          "docs/ARCHITECTURE.md"
+        ],
+        "title": "Architecture",
+        "headings": [
+          "Architecture"
+        ],
+        "linkedPaths": [],
+        "commandBlocks": [],
+        "roleClaims": [
+          {
+            "kind": "document-role",
+            "value": "architecture",
+            "confidence": "high",
+            "signals": [
+              "architecture path"
+            ],
+            "sources": [
+              {
+                "detector": "repository-evidence",
+                "kind": "file",
+                "path": "docs/ARCHITECTURE.md"
+              }
+            ]
+          }
+        ],
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "file",
+            "path": "docs/ARCHITECTURE.md"
+          }
+        ]
+      },
+      {
+        "id": "document-surface:README.md",
+        "kind": "document-surface",
+        "path": "README.md",
+        "paths": [
+          "README.md"
+        ],
+        "title": "Good Fixture",
+        "headings": [
+          "Good Fixture"
+        ],
+        "linkedPaths": [],
+        "commandBlocks": [
+          {
+            "index": 0,
+            "language": "bash",
+            "text": "npm test\\nnpm run lint\\nnpm run type-check\\n",
+            "truncated": false
+          }
+        ],
+        "roleClaims": [
+          {
+            "kind": "document-role",
+            "value": "development",
+            "confidence": "low",
+            "signals": [
+              "setup or command block"
+            ],
+            "sources": [
+              {
+                "detector": "repository-evidence",
+                "kind": "inference",
+                "path": "README.md"
+              }
+            ]
+          },
+          {
+            "kind": "document-role",
+            "value": "entrypoint",
+            "confidence": "high",
+            "signals": [
+              "root README filename"
+            ],
+            "sources": [
+              {
+                "detector": "repository-evidence",
+                "kind": "file",
+                "path": "README.md"
+              }
+            ]
+          }
+        ],
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "file",
+            "path": "README.md"
+          }
+        ]
+      }
+    ],
+    "verificationSurfaces": [
+      {
+        "id": "verification-surface:.github/workflows/ci.yml:job.verify:build",
+        "kind": "verification-surface",
+        "paths": [
+          ".github/workflows/ci.yml"
+        ],
+        "rootIds": [],
+        "commandKind": "build",
+        "workflowJobId": "verify",
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "workflow",
+            "path": ".github/workflows/ci.yml"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:.github/workflows/ci.yml:job.verify:install",
+        "kind": "verification-surface",
+        "paths": [
+          ".github/workflows/ci.yml"
+        ],
+        "rootIds": [],
+        "commandKind": "install",
+        "workflowJobId": "verify",
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "workflow",
+            "path": ".github/workflows/ci.yml"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:.github/workflows/ci.yml:job.verify:lint",
+        "kind": "verification-surface",
+        "paths": [
+          ".github/workflows/ci.yml"
+        ],
+        "rootIds": [],
+        "commandKind": "lint",
+        "workflowJobId": "verify",
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "workflow",
+            "path": ".github/workflows/ci.yml"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:.github/workflows/ci.yml:job.verify:test",
+        "kind": "verification-surface",
+        "paths": [
+          ".github/workflows/ci.yml"
+        ],
+        "rootIds": [],
+        "commandKind": "test",
+        "workflowJobId": "verify",
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "workflow",
+            "path": ".github/workflows/ci.yml"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:.github/workflows/ci.yml:job.verify:typecheck",
+        "kind": "verification-surface",
+        "paths": [
+          ".github/workflows/ci.yml"
+        ],
+        "rootIds": [],
+        "commandKind": "typecheck",
+        "workflowJobId": "verify",
+        "confidence": "medium",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "workflow",
+            "path": ".github/workflows/ci.yml"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:commands:build",
+        "kind": "verification-surface",
+        "paths": [
+          "package.json"
+        ],
+        "rootIds": [],
+        "commandKind": "build",
+        "confidence": "low",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json",
+            "note": "repository-level command evidence; root coverage not inferred"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:commands:lint",
+        "kind": "verification-surface",
+        "paths": [
+          "package.json"
+        ],
+        "rootIds": [],
+        "commandKind": "lint",
+        "confidence": "low",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json",
+            "note": "repository-level command evidence; root coverage not inferred"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:commands:test",
+        "kind": "verification-surface",
+        "paths": [
+          "package.json"
+        ],
+        "rootIds": [],
+        "commandKind": "test",
+        "confidence": "low",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json",
+            "note": "repository-level command evidence; root coverage not inferred"
+          }
+        ]
+      },
+      {
+        "id": "verification-surface:commands:typecheck",
+        "kind": "verification-surface",
+        "paths": [
+          "package.json"
+        ],
+        "rootIds": [],
+        "commandKind": "typecheck",
+        "confidence": "low",
+        "sources": [
+          {
+            "detector": "repository-evidence",
+            "kind": "manifest",
+            "path": "package.json",
+            "note": "repository-level command evidence; root coverage not inferred"
+          }
+        ]
+      }
+    ],
+    "topology": {
+      "dependencyHints": [],
+      "testProximityHints": [
+        {
+          "id": "test-proximity:root:src",
+          "kind": "test-proximity-hint",
+          "paths": [
+            "src"
+          ],
+          "rootId": "root:src",
+          "nearbyTestPaths": [],
+          "confidence": "medium",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "src",
+              "note": "path proximity"
+            }
+          ]
+        }
+      ],
+      "documentationProximityHints": [
+        {
+          "id": "documentation-proximity:root:src",
+          "kind": "documentation-proximity-hint",
+          "paths": [
+            "src"
+          ],
+          "rootId": "root:src",
+          "documentSurfaceIds": [],
+          "roleClaims": [],
+          "confidence": "low",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "inference",
+              "path": "src",
+              "note": "path proximity"
+            }
+          ]
+        }
+      ],
+      "generatedPressure": [
+        {
+          "id": "generated-pressure:root:__tests__",
+          "kind": "generated-pressure",
+          "paths": [
+            "__tests__"
+          ],
+          "rootId": "root:__tests__",
+          "generatedFileRatio": 0,
+          "generatedBytesRatio": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "__tests__"
+            }
+          ]
+        },
+        {
+          "id": "generated-pressure:root:.",
+          "kind": "generated-pressure",
+          "paths": [
+            "."
+          ],
+          "rootId": "root:.",
+          "generatedFileRatio": 0,
+          "generatedBytesRatio": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "."
+            }
+          ]
+        },
+        {
+          "id": "generated-pressure:root:docs",
+          "kind": "generated-pressure",
+          "paths": [
+            "docs"
+          ],
+          "rootId": "root:docs",
+          "generatedFileRatio": 0,
+          "generatedBytesRatio": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "docs"
+            }
+          ]
+        },
+        {
+          "id": "generated-pressure:root:src",
+          "kind": "generated-pressure",
+          "paths": [
+            "src"
+          ],
+          "rootId": "root:src",
+          "generatedFileRatio": 0,
+          "generatedBytesRatio": 0,
+          "confidence": "high",
+          "sources": [
+            {
+              "detector": "repository-evidence",
+              "kind": "file",
+              "path": "src"
+            }
+          ]
+        }
+      ],
+      "metrics": {
+        "rootCount": 4,
+        "languageCount": 1,
+        "sourceToNearbyTestRatio": 0,
+        "docsToSourceProximityRatio": 0,
+        "generatedFileRatio": 0,
+        "largestRootShare": 1,
+        "publicApiSurfaceCount": 0,
+        "rootsWithoutLocalTests": 1,
+        "rootsWithoutLocalDocs": 1,
+        "verificationMappedRootCount": 0
+      }
+    }
+  },
+  "designState": {
+    "strengths": [
+      {
+        "id": "design-state:documentation-evidence",
+        "category": "documentation-evidence",
+        "title": "Documentation role evidence found",
+        "severity": "info",
+        "summary": "3 document surface(s) have deterministic role evidence.",
+        "evidenceIds": [
+          "document-surface:AGENTS.md",
+          "document-surface:docs/ARCHITECTURE.md",
+          "document-surface:README.md"
+        ],
+        "paths": [
+          "AGENTS.md",
+          "README.md",
+          "docs/ARCHITECTURE.md"
+        ],
+        "confidence": "medium",
+        "gateable": false
+      },
+      {
+        "id": "design-state:verification-map",
+        "category": "verification-locality",
+        "title": "Verification surfaces detected",
+        "severity": "info",
+        "summary": "9 command or CI verification surface(s) were detected.",
+        "evidenceIds": [
+          "verification-surface:.github/workflows/ci.yml:job.verify:build",
+          "verification-surface:.github/workflows/ci.yml:job.verify:install",
+          "verification-surface:.github/workflows/ci.yml:job.verify:lint",
+          "verification-surface:.github/workflows/ci.yml:job.verify:test",
+          "verification-surface:.github/workflows/ci.yml:job.verify:typecheck",
+          "verification-surface:commands:build",
+          "verification-surface:commands:lint",
+          "verification-surface:commands:test",
+          "verification-surface:commands:typecheck"
+        ],
+        "paths": [
+          ".github/workflows/ci.yml",
+          "package.json"
+        ],
+        "confidence": "medium",
+        "gateable": false
+      }
+    ],
+    "risks": [
+      {
+        "id": "design-state:verification-locality:unmapped-tests",
+        "category": "verification-locality",
+        "title": "Some source roots have no nearby tests",
+        "severity": "info",
+        "summary": "1 source root(s) have no path-local test evidence.",
+        "evidenceIds": [
+          "test-proximity:root:src"
+        ],
+        "paths": [
+          "src"
+        ],
+        "confidence": "medium",
+        "recommendation": "Add local tests or document the verification command that covers these roots.",
+        "gateable": false
+      }
+    ],
+    "ambiguities": [
+      {
+        "id": "design-state:documentation-proximity:unmapped-docs",
+        "category": "documentation-evidence",
+        "title": "Some source roots have no nearby documentation",
+        "severity": "info",
+        "summary": "1 source root(s) have no path-local document role evidence.",
+        "evidenceIds": [
+          "documentation-proximity:root:src"
+        ],
+        "paths": [
+          "src"
+        ],
+        "confidence": "low",
+        "recommendation": "Link architecture, development, or API docs to the affected roots.",
+        "gateable": false
+      }
+    ]
+  },
+  "dimensions": [
+    {
+      "category": "docs",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    },
+    {
+      "category": "commands",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    },
+    {
+      "category": "ci",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    },
+    {
+      "category": "instructions",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    },
+    {
+      "category": "files",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    },
+    {
+      "category": "safety",
+      "score": 100,
+      "findingCount": 0,
+      "bySeverity": {
+        "info": 0,
+        "warning": 0,
+        "error": 0
+      }
+    }
+  ],
+  "autonomyEnvelope": [
+    {
+      "stage": "orient",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "bootstrap",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "navigate",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "edit",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "verify",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "review",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "merge",
+      "status": "ready",
+      "findingIds": []
+    },
+    {
+      "stage": "deploy",
+      "status": "ready",
+      "findingIds": []
+    }
+  ],
+  "reportContract": {
+    "schemaVersion": "local-readiness/v2",
+    "experimentalFields": [
+      "repositoryEvidence",
+      "designState",
+      "dimensions",
+      "instructionContradictions",
+      "hookExecutionRisks",
+      "autonomyEnvelope",
+      "readinessProfile"
+    ]
+  },
+  "findings": [],
+  "readinessProfile": {
+    "readiness": [
+      {
+        "stage": "orient",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "bootstrap",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "navigate",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "edit",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "verify",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "review",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "merge",
+        "status": "ready",
+        "findingIds": []
+      },
+      {
+        "stage": "deploy",
+        "status": "ready",
+        "findingIds": []
+      }
+    ],
+    "risk": {
+      "verdict": "low",
+      "confidence": "high",
+      "evidenceRefs": [],
+      "explanation": "no capability surfaces detected"
+    },
+    "coverage": {
+      "applicableSurfaces": 6,
+      "assessedSurfaces": 6,
+      "ratio": 1,
+      "gaps": []
+    },
+    "observability": {
+      "verifiedLocally": [
+        "instruction-surfaces",
+        "command-ecosystems",
+        "ci-workflows",
+        "governance",
+        "documentation-roles",
+        "repository-topology"
+      ],
+      "notFound": [
+        "capability-surfaces"
+      ],
+      "notObservableLocally": [
+        "Default-branch protection",
+        "Required status checks",
+        "Required CODEOWNER review",
+        "Environment approval rules",
+        "Production secret scopes",
+        "Deployment permission boundaries"
+      ]
+    },
+    "calibrationConfidence": "low"
+  }
 }"
 `;
 
 exports[`scan output snapshots good-repo console summary 1`] = `
-"AgentReady score: 100/100
-Files: 7 (1 source, 1 tests, 3 docs)
+"Repository Agent Readiness Profile
+Capability risk: low (no capability surfaces detected)
+Scanner coverage: 100% (6/6 applicable surfaces assessed)
+Calibration confidence: low
+AgentReady score: 100/100 (secondary; the profile above is the primary signal)
+Files: 9 (1 source, 1 tests, 4 docs)
 Capabilities: 0, safety signals: 0
 CI: 1 workflow (runs install, lint, type-check, test, build)
-Findings: 0"
+Dimensions: docs 100, commands 100, ci 100, instructions 100, files 100, safety 100
+Findings: 0
+Not verified from repository contents: Default-branch protection, Required status checks, Required CODEOWNER review, Environment approval rules, Production secret scopes, Deployment permission boundaries"
 `;
 
 exports[`scan output snapshots good-repo markdown 1`] = `
 "## AgentReady scan
 
-Score: **100/100**
-Files: 7 total, 1 source, 1 tests, 3 docs
+### Repository Agent Readiness Profile
+The primary, multi-axis readiness view; the single score below is a secondary, experimental signal.
+- **Capability risk:** low — no capability surfaces detected
+- **Scanner coverage:** 100% (6/6 applicable surfaces assessed)
+- **Calibration confidence:** low
+- **Per-stage readiness:** see the Autonomy envelope section below.
+
+Score (secondary, experimental): **100/100**
+Files: 9 total, 1 source, 1 tests, 4 docs
 Capabilities: 0; safety signals: 0
 CI: 1 workflow — runs install, lint, type-check, test, build
 Findings: 0
 
+### Dimension scores
+- docs: **100/100** (no findings)
+- commands: **100/100** (no findings)
+- ci: **100/100** (no findings)
+- instructions: **100/100** (no findings)
+- files: **100/100** (no findings)
+- safety: **100/100** (no findings)
+
+### Autonomy envelope
+What level of agent autonomy this repository is ready for, derived from findings (not a separate score):
+- orient: ✅ ready
+- bootstrap: ✅ ready
+- navigate: ✅ ready
+- edit: ✅ ready
+- verify: ✅ ready
+- review: ✅ ready
+- merge: ✅ ready
+- deploy: ✅ ready
+
+### Repository topology
+Roots: 4; languages: 1; roots without local tests: 1; roots without local docs: 1
+- \`__tests__\`: test, TypeScript, 0 source, 1 tests, 0 docs
+- \`.\`: package, TypeScript, 0 source, 0 tests, 3 docs
+- \`docs\`: docs, 0 source, 0 tests, 1 docs
+- \`src\`: unknown, TypeScript, 1 source, 0 tests, 0 docs
+
+### Documentation roles
+- \`AGENTS.md\`: agent-instruction (high)
+- \`docs/ARCHITECTURE.md\`: architecture (high)
+- \`README.md\`: development (low), entrypoint (high)
+
+### Design-state strengths
+- **INFO** documentation-evidence: 3 document surface(s) have deterministic role evidence. Paths: \`AGENTS.md\`, \`README.md\`, \`docs/ARCHITECTURE.md\`.
+- **INFO** verification-locality: 9 command or CI verification surface(s) were detected. Paths: \`.github/workflows/ci.yml\`, \`package.json\`.
+
+### Design-state risks
+- **INFO** verification-locality: 1 source root(s) have no path-local test evidence. Paths: \`src\`.
+
+### Design-state ambiguities
+- **INFO** documentation-evidence: 1 source root(s) have no path-local document role evidence. Paths: \`src\`.
+
 ### Findings
-No findings."
+No findings.
+
+### Not verified from repository contents
+AgentReady scans repository contents only, with no network calls — these platform-level controls cannot be confirmed or denied from a local scan:
+- Default-branch protection
+- Required status checks
+- Required CODEOWNER review
+- Environment approval rules
+- Production secret scopes
+- Deployment permission boundaries"
 `;
 
 exports[`scan output snapshots good-repo sarif 1`] = `

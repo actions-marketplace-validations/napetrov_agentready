@@ -7,6 +7,374 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Portfolio results now advertise nested finding-experimental keys (ADR 0005
+  compliance fix)**: `PortfolioRepoResult` (`ok: true`) gains an optional
+  `experimentalFindingFields`, computed from `topFindings` the same way the
+  scan report's `reportContract` is computed from `findings`. Previously a
+  `batch --format json` result could have silently emitted `topFindings[].confidence`/
+  `scope` with no adjacent marker once a rule opted into non-default values —
+  harmless today (no built-in rule sets them yet) but a latent violation of the
+  ADR's "never emitted unadvertised" invariant. The shared computation is
+  extracted to `lib/repo-readiness/core/experimental-finding-fields.ts` and used
+  by both the scan report and the portfolio path. The diff report already
+  satisfied this via its embedded `baseReport`/`headReport` contracts; that is
+  now documented on `ReadinessDiffReport` and locked in by a test.
+
+### Changed
+- **Reports lead with the readiness profile (ADR 0005 implementation, phase 3)**:
+  the console and markdown scan reports now open with a **Repository Agent
+  Readiness Profile** block (capability risk, scanner coverage, calibration
+  confidence; per-stage readiness via the existing autonomy-envelope section),
+  and the single 0–100 score is demoted to a clearly labeled secondary line —
+  delivering the ADR's core "the profile is the product, the score is a
+  secondary view" decision in the human-facing output. JSON output is unchanged
+  (the profile has been present since phase 2); the profile block is omitted for
+  reports without a `readinessProfile`.
+
+### Added
+- **Repository Agent Readiness Profile (ADR 0005 implementation, phase 2)**: every
+  scan report now carries a `readinessProfile`
+  (`lib/repo-readiness/core/readiness-profile.ts`) — the multi-axis view that
+  demotes the single score to a secondary signal. It separates **readiness**
+  (per-stage, reusing the existing autonomy envelope verbatim), **risk**
+  (aggregate capability-risk verdict — worst tier present, so one `high` surface
+  is never diluted by many `low` ones; `low` with empty refs when no surfaces
+  exist; an MCP config stays `high`), **coverage** (a fixed `CoverageSurfaceKind`
+  taxonomy counted by kind, not by file, so a legible monorepo isn't penalized
+  for size), and **observability** (verified-locally / not-found /
+  not-observable-locally, the last reusing the external-controls list).
+  `calibrationConfidence` is `low` until real agent-outcome data exists.
+  Registered as the `readinessProfile` experimental field. Also adds an
+  `experimentalFindingFields` marker to `reportContract` that advertises nested
+  `findings[].confidence`/`scope` keys whenever a rule emits them (omitted
+  otherwise), so consumers can detect/strip the unstable keys. JSON Schemas
+  regenerated; action bundle rebuilt.
+- **Calibratable scoring engine (ADR 0005 implementation, phase 1)**: `calculateScore`
+  now accepts an optional `ScoreWeights` table and reads optional, rule-owned
+  `confidence`/`scope` inputs on findings (`lib/repo-readiness/core/scoring.ts`,
+  `lib/repo-readiness/core/types.ts`). Weights default to a deep-frozen
+  `DEFAULT_WEIGHTS` whose all-`1` confidence/scope multipliers reproduce the
+  historical fixed-penalty score byte-for-byte, so `summary.score`, per-category
+  `dimensions[].score`, and all gates are unchanged by default. Injected
+  (non-default) weights are validated (`assertValidWeights`: finite,
+  non-negative, complete) before use, and the score is rounded to an integer so
+  fractional calibrated weights still satisfy the integer score contract. The
+  finding schema gains optional `confidence`/`scope` keys (JSON Schema
+  regenerated). The report-profile axes, coverage taxonomy, and
+  `experimentalFindingFields` marker built on this foundation are described in the
+  phase-2 and phase-3 entries above.
+- Proposed **ADR 0005: Calibrated Multi-Dimensional Readiness Profile**
+  ([docs/adr/0005-calibrated-multi-dimensional-readiness-profile.md](docs/adr/0005-calibrated-multi-dimensional-readiness-profile.md),
+  indexed in [docs/adr/README.md](docs/adr/README.md)): records the decision to
+  demote the experimental absolute score to a secondary view and make a
+  four-axis Repository Agent Readiness Profile (Readiness / Risk / Coverage /
+  Observability) the primary output. Specifies additive, confidence/scope-aware
+  scoring inputs with a frozen `DEFAULT_WEIGHTS` that reproduces today's score
+  byte-for-byte, an `experimentalFindingFields` opt-in marker for the new
+  nested finding keys, and a coverage-surface taxonomy — all as a `Proposed`
+  ADR with no runtime code change.
+- Implemented the full v0.4 backlog from the AIReady calibration record (see
+  [docs/roadmap/v0.4-issue-drafts.md](docs/roadmap/v0.4-issue-drafts.md) for
+  per-issue detail and deliberate scope deviations):
+  - `commands.reference.shortcut-script`: flags a code-formatted bare
+    `<manager> <word>` shortcut (e.g. `` `pnpm dev` ``) that matches neither a
+    curated per-manager built-in-verb allowlist nor an existing package.json
+    script (`lib/repo-readiness/detectors/command-references.ts`). Gated on
+    the reference appearing inside a Markdown code span (inline or fenced)
+    instead of a two-tier confidence split, to keep prose that merely
+    discusses a package manager from being misread as a command. `oss`
+    policy escalates it to `error` alongside the other stale
+    command-reference kinds.
+  - `safety.agent-hook.executes-repository-code`: the composite risk neither
+    `safety.install-hook` nor `safety.capability.high-risk` names on its own
+    — an agent-tool hook that fires automatically (`SessionStart`,
+    `SessionEnd`, `PreCompact`, `Notification`, not events tied to explicit
+    user/tool activity) whose command invokes a package-manager install
+    command (`detectHookExecutionRisks` in
+    `lib/repo-readiness/detectors/safety-signals.ts`). Default `warning`;
+    `enterprise` policy escalates to `error`.
+  - `governance.codeowners.protected-path-gap` and
+    `governance.codeowners.single-owner-risk`
+    (`detectProtectedPathCoverage` in
+    `lib/repo-readiness/detectors/governance.ts`): checks a fixed set of
+    structurally high-risk paths (`.github/**`, `.claude/**`, `AGENTS.md`,
+    `CLAUDE.md`, `**/auth/**`, `**/migrations/**`, `**/deploy/**`, ...)
+    against CODEOWNERS independent of recent commit activity, and flags a
+    path owned by exactly one individual with no team/second owner. `info`
+    by default; `enterprise` policy escalates both to `warning`.
+  - `instructions.portable-entrypoint.missing`: fires when a repository has
+    some recognized agent instruction surface but none of them is a portable
+    entrypoint (`AGENTS.md`) — `instructions.missing` correctly stays silent
+    in this case, since AgentReady still does not assume one filename is
+    universally canonical. `info` by default; `enterprise` policy escalates
+    to `warning`.
+  - Autonomy envelope: every rule in `checks/catalog.ts` is tagged with
+    `affectedStages` (new `AgentStage` type:
+    `orient`/`bootstrap`/`navigate`/`edit`/`verify`/`review`/`merge`/`deploy`).
+    `calculateAutonomyEnvelope` derives `report.autonomyEnvelope` — a
+    per-stage `ready`/`not_yet_ready`/`blocked` status from findings, added
+    to `reportContract.experimentalFields` — so a report can say "ready to
+    edit and open a PR, not yet ready to merge or deploy autonomously"
+    instead of only a single aggregate score. Rendered as an "Autonomy
+    envelope" section in `formatScanMarkdown` and a compact
+    not-ready/blocked-only line in `formatScanSummary`.
+  - "Not verified from repository contents": every default scan's
+    markdown/console output now lists a fixed set of platform-level controls
+    (`NOT_VERIFIED_EXTERNAL_CONTROLS` in
+    `lib/repo-readiness/reporters/not-verified.ts`: branch protection,
+    required status checks, required CODEOWNER review, environment approval
+    rules, production secret scopes, deployment permission boundaries) that a
+    local, non-networked scan cannot observe from repository contents alone.
+- Calibration feedback schema (`reports/evaluation/calibration/calibration-feedback.schema.json`)
+  and the first calibration record
+  (`reports/evaluation/calibration/napetrov-AIReady.json`), the "human/agent
+  judgment" half of the evaluation loop in
+  [docs/product/evaluation.md](docs/product/evaluation.md#feedback-classification):
+  every reviewed finding is classified as `true_positive`, `false_positive`,
+  `false_negative`, `severity_mismatch`, `policy_mismatch`, or
+  `not_observable_locally`, tagged
+  with the agent-workflow stage(s) it affects, and marked with whether an
+  AgentReady maintainer independently re-verified it. AIReady is a
+  high-readiness repository (extensive agent instructions, sophisticated CI, a
+  passing AgentReady Action gate at a configured minimum score of 80) whose
+  manual review still surfaced several `false_negative`/`severity_mismatch`
+  findings — see
+  [docs/roadmap/v0.4-issue-drafts.md](docs/roadmap/v0.4-issue-drafts.md) for
+  the resulting backlog (package-manager-aware shortcut-script command
+  validation, a composite automatic-hook-executes-repository-code safety
+  check, autonomy-stage metadata, protected-path CODEOWNERS coverage, and the
+  `policyOptions.requirePortableInstructionEntrypoint` policy option).
+- `oss` and `ml-scientific` policy packs (`lib/repo-readiness/checks/policy-packs.ts`),
+  joining `default` and `enterprise` as the four built-in `--policy <name>`
+  choices on `scan`/`diff` and the GitHub Action's `policy` input. `oss`
+  escalates stale command references (`commands.reference.npm-script`/
+  `make-target`: warning→error) and contribution-onboarding gaps
+  (`docs.developer.thin`, `docs.pull-request-template.missing`: info→warning).
+  `ml-scientific` de-escalates warning-level `files.large` and
+  `commands.lint.missing` to info (an error-level instance of either finding,
+  including one promoted by `errorOnWarnings`, stays gateable under
+  `--fail-on error`). See
+  [docs/product/policy-packs.md](docs/product/policy-packs.md).
+- Deterministic instruction-file contradiction detection: `detectInstructionContradictions`
+  (`lib/repo-readiness/detectors/instruction-contradictions.ts`) flags
+  root-scope or legacy always-active instruction files (the ones an agent
+  loads into context together — `AGENTS.md`, `CLAUDE.md`,
+  `.github/copilot-instructions.md`, `GEMINI.md`, `.cursorrules`, …) that
+  each exclusively reference a different single package manager, as
+  `instructions.contradiction.package-manager` (warning). Compares only
+  files sharing an instruction-surface ecosystem and ignores negated
+  mentions (e.g. "never run npm install").
+- CODEOWNERS coverage-gap detection: `detectCodeownersCoverageGaps`
+  (`lib/repo-readiness/detectors/governance.ts`) flags top-level directories
+  with sustained recent commit activity (local git history only, bounded to
+  the most recent commits, no network calls) that no CODEOWNERS pattern
+  covers, as `docs.codeowners.coverage-gap` (info, one finding per directory).
+  `GovernanceEvidence` gained `uncoveredActiveDirectories`, and
+  `codeownersPath` now resolves GitHub's actual `.github/` > root > `docs/`
+  file precedence.
+- README "Design guarantees" section and an expanded "Evaluation /
+  benchmarks" section, surfacing four already-shipped trust properties
+  (MCP host-delegated `analyze`, versioned JSON Schema contracts,
+  worktree-isolated `diff`, the offline LLM-layer eval harness).
+
+### Changed
+- `LocalReadinessReport` gained a new required `instructionContradictions`
+  field, listed in `reportContract.experimentalFields` alongside
+  `repositoryEvidence`/`designState`/`dimensions` (schema version stays
+  `local-readiness/v2`; consumers that validate against a pinned older copy
+  of the JSON Schema should expect this field).
+- `LocalReadinessReport` gained two more required fields, both also listed in
+  `reportContract.experimentalFields` (schema version still
+  `local-readiness/v2`): `hookExecutionRisks` (see
+  `safety.agent-hook.executes-repository-code` above) and `autonomyEnvelope`
+  (see "Autonomy envelope" above). `GovernanceEvidence` gained an optional
+  `protectedPathCoverage` field (see `governance.codeowners.protected-path-gap`/
+  `single-owner-risk` above). `CommandReferenceKind` gained `shortcut-script`.
+- Documented that GitHub-org-API-integrated batch scanning (auto-discovering
+  and cloning every repo in an org) is intentionally out of scope: it would
+  require AgentReady itself to hold a GitHub credential and make network
+  calls, breaking the no-external-service guarantee every other command
+  relies on. Local `batch --root` plus an existing clone tool (e.g.
+  `gh repo list` piped into `gh repo clone`) is the supported path.
+
+## [0.3.0] - 2026-07-13
+
+### Added
+- Dimension-score rollup: every scan report now includes `dimensions`, a
+  per-category (`docs`/`commands`/`ci`/`instructions`/`files`/`safety`) score
+  computed with the same severity-penalty model as the overall `summary.score`.
+  A repo with unsafe scripts but strong CI no longer looks identical to one with
+  the opposite profile under a single number. Exposed as
+  `calculateDimensionScores`/`RULE_CATEGORIES` from `checks/catalog.ts`, listed
+  in `reportContract.experimentalFields`, and rendered in the console (`Dimensions: ...`
+  line, with severity counts) and markdown (`### Dimension scores`) reporters.
+  The schema requires exactly one entry per category (rejecting an empty or
+  duplicated `dimensions` array) and constrains `score` to 0-100 and the
+  finding counts to non-negative integers. The uniqueness constraint is
+  enforced in the published JSON Schemas too, not just the runtime Zod
+  validator: draft-7 has no `minContains`/`maxContains`, so
+  `bin/agentready-emit-schemas.ts` uses a `contains`-per-category `allOf`
+  which, combined with the array's fixed length, forces each category to
+  appear exactly once by pigeonhole — so schema-based CI/editor validation
+  rejects the same malformed reports the scanner's own runtime check does.
+- Command reference validation: a new `commandReferences` detector scans
+  READMEs and instruction files for command references that don't match the
+  repository's actual command surfaces — `npm`/`yarn`/`pnpm`/`bun run
+  <script>` (and bare `test`/`start`) mentions whose script isn't in
+  `package.json`, `make <target>` mentions with no matching Makefile target,
+  and package-manager mentions that disagree with the detected lockfile.
+  Emits `commands.reference.npm-script`/`commands.reference.make-target`
+  (warning) and `commands.reference.package-manager-mismatch` (info,
+  since docs can legitimately discuss more than one package manager).
+  `CommandEvidence` also gained `makeTargets` (the Makefile target names,
+  already parsed internally but not previously exposed). Multi-target Makefile
+  rules (`build test: setup`) are now parsed correctly, make-option tokens
+  (`make -j test`, `make -C dir test`) are no longer misread as targets, bare
+  `npm start` is not flagged when a root `server.js` provides npm's documented
+  fallback, bare `bun test` is never flagged since Bun's test runner needs no
+  script, `docs.contributing` is scanned alongside READMEs, and repeated
+  identical references in one document are deduped to one finding.
+- Policy packs: a typed `PolicyPack`/`PolicyResult` model
+  (`lib/repo-readiness/core/policy.ts`) applies team-specific severity
+  adjustments to gating without ever mutating raw findings or `summary.score`.
+  Ships with a no-op `default` pack and a real `enterprise` pack (three
+  escalations: `instructions.missing` warning→error,
+  `safety.install-hook`/`safety.deploy` info→warning) in
+  `lib/repo-readiness/checks/policy-packs.ts`. `--policy <name>` on `agentready
+  scan`/`diff` applies it to `--fail-on`/`--min-score` gating and prints the
+  adjustments (with reasons) for human-readable output formats; a `policy`
+  input on the GitHub Action does the same, with new `policy-adjustments-count`
+  and `policy-effective-score` outputs. See
+  [docs/product/policy-packs.md](docs/product/policy-packs.md) for the full
+  design and what's still open (`oss`/`ml-scientific` packs, a config-file
+  shape, folding `PolicyResult` into the JSON/SARIF report contract).
+- Governance surface detection: a new `governance` detector reports whether a
+  CODEOWNERS file and a pull-request template exist at a GitHub-recognized
+  path (repo root, `.github/`, or `docs/`; presence-only — it does not infer
+  ownership boundaries from git history/blame). Emits
+  `docs.pull-request-template.missing` (info, any repo size — a PR template
+  benefits every repo, however small) and `docs.codeowners.missing` (info,
+  only for non-trivial repos with more than 20 source files, where routing a
+  review actually matters). Report field: `report.governance` (`{
+  codeownersPath?, pullRequestTemplatePath? }`).
+- Capability-surface risk tiers: `CapabilitySurfaceEvidence` gained a
+  `riskTier` (`low`/`medium`/`high`) field, so `report.capabilities` no longer
+  treats an MCP config, a hook, a plugin, and a static LSP file as equally
+  "present." MCP server configs, hook scripts, plugin manifests, and a Claude
+  Code settings file that configures a non-empty `hooks` block are `high`
+  (arbitrary commands, or — for MCP — a tool set static config can't verify);
+  a settings file with no `hooks` key is `medium`; LSP/editor config and
+  skills stay `low`. New `safety.capability.high-risk` (info) finding per
+  `high`-tier surface; the `enterprise` policy pack escalates it to warning
+  (four escalations now, was three). Console/markdown reporters call out the
+  high-risk count in the capabilities line.
+- Local multi-repo/portfolio batch mode: `agentready batch [paths...]
+  [--root <dir>]` scans every target independently (`core/portfolio.ts`,
+  reusing `scanLocalReadiness`) and aggregates into one portfolio report — a
+  repo that fails to scan is captured per-repo, never aborting the batch.
+  `--root <dir>` scans every immediate non-hidden subdirectory of `dir`, the
+  shape of a "clone of every repo" platform-team directory. `summary`/`json`/
+  `markdown` output; `--min-score`/`--fail-on-scan-error` (default on;
+  `--no-fail-on-scan-error` to disable) gate the batch. New schema:
+  `schemas/portfolio-report.schema.json`. No hosted service required.
+- Empirical validation scaffold (scaffold only): `npm run agentready:benchmark`
+  (`bin/agentready-evaluate.ts`) automates the deterministic half of
+  `docs/product/evaluation.md`'s "Minimal public benchmark" — a fixed,
+  profile-diverse 10-repo corpus (`reports/evaluation/corpus.json`, including
+  AgentReady itself scanned in place), a scan of each repo, and a generated
+  `reports/evaluation/README.md` with the corpus table, scan commands, and
+  finding counts by category. Giving the same bounded task to real coding
+  agents and recording their friction is explicitly not automated — the
+  report marks those sections `TODO` rather than inventing data.
+
+### Fixed
+- `agentready scan`/`diff --output <file>` now writes a non-default policy's
+  summary (`--policy enterprise`, etc.) into the same file as the report
+  instead of always printing it to stdout — a saved markdown/summary report
+  now carries the policy context that explains why the policy gate may have
+  failed.
+- `commands.reference.npm-script` no longer flags workspace-qualified
+  references (`npm run dev --workspace packages/app`, `-w`, `--workspaces`):
+  the script may exist only in the workspace package, not the root
+  `package.json` this detector checks against.
+- `agentready diff --fail-on-regression` now recomputes regressions against
+  policy-adjusted severities when `--policy` is set, instead of only applying
+  the policy to the separate `--fail-on` new-findings check. Previously a
+  policy that escalates a *new* finding's severity (e.g. `enterprise` raising
+  `safety.install-hook`/`safety.deploy` from info to warning) was invisible to
+  `report.regressions`, which is always built from raw severities — so
+  `--fail-on-regression` alone could pass a PR the policy was meant to gate.
+- Command-reference validation now checks root-*scope* instruction files
+  (e.g. `.claude/CLAUDE.md`, `.github/copilot-instructions.md` — always
+  loaded, per `detectInstructionSurfaces`'s own `scope: 'root'`
+  classification) and `.github/CONTRIBUTING.md`, instead of only slashless
+  paths. Previously these always-loaded, repo-level files were skipped
+  because their path contains a `/`, so a stale `npm run <script>` reference
+  in the primary agent instruction file could go unflagged. Genuinely
+  nested/package-scoped docs (`packages/foo/CLAUDE.md`,
+  `packages/foo/README.md`) are still excluded.
+- The GitHub Action's `markdown-report-path` artifact now includes the policy
+  summary and augmented-analysis section, matching the job summary/PR
+  comment. Previously `report.md` was written before those sections were
+  appended to `summaryMarkdown`, so a run with `policy: enterprise` (or
+  `analyze: true`) left the saved markdown file looking like a plain
+  deterministic report — misleading for anyone who uploads or inspects that
+  artifact directly, and giving no clue why a policy gate failed.
+- Command-reference document reads (`README`/instruction files) are now
+  capped at 200KB at the I/O layer via `openSync`/`readSync`, instead of
+  reading (and UTF-8 decoding) the whole file before truncating the decoded
+  string. A mislabeled huge file (e.g. a binary asset with a `.md` extension)
+  no longer forces a full read into memory just to scan for command
+  references.
+- `commands.reference.make-target` no longer misreads a variable override
+  (`make PREFIX=/usr/local install`, `make CFLAGS=-O2 test`) as a missing
+  target — GNU make treats any `=`-containing argument as a variable
+  assignment, not a target.
+- `docs.pull-request-template.missing` no longer fires for a
+  `PULL_REQUEST_TEMPLATE/` directory at the repo root or under `docs/`
+  (GitHub recognizes both, alongside `.github/`); only the `.github/` case
+  was previously matched.
+- Capability-surface risk classification no longer treats an empty
+  matcher-group array (`{ hooks: { PreToolUse: [] } }`) as a configured hook
+  — it's as inert as an empty `hooks` object, so it's `medium` risk, not
+  `high`.
+- `agentready batch --format markdown` now escapes `|` in repo paths/error
+  messages before interpolating them into table cells, so a path or error
+  containing a pipe can no longer corrupt the rendered table.
+- The GitHub Action's diff-mode policy summary text and `policyAdjustmentsCount`
+  output could previously diverge: the rendered adjustment list covered the
+  whole head report while the count covered only new findings. Both are now
+  derived from the same finding set.
+- `portfolioRepoResultSchema.score` and `portfolioSummarySchema`'s
+  `averageScore`/`minScore`/`maxScore` are now bounded to `0-100` integers in
+  both the runtime Zod schema and the generated JSON Schema, matching the
+  same contract already enforced on dimension scores.
+- The `.github/`-is-root-equivalent carve-out for command-reference checks
+  was too broad: it matched any path starting with `.github/`, including a
+  genuinely nested component under it (e.g. a local composite action at
+  `.github/actions/foo/README.md` with its own `package.json` scripts). Now
+  only a doc directly under `.github/` (one path segment) counts as
+  root-equivalent; deeper paths are treated the same as any other
+  package-scoped doc and excluded.
+- Command-reference checks never read through a symlinked doc (e.g. a root
+  `README.md` symlinked to `packages/app/README.md`). Previously such a
+  symlink was still visible as a slashless, root-scope path, but reading it
+  followed the link and checked the *target's* content (which can document a
+  different package's own scripts) against the *root's* command surface — a
+  false positive. Matches the "classify a symlink by path, never dereference
+  it" invariant the file-inventory walker already applies elsewhere.
+- `commands.reference.make-target` now recognizes path-like targets
+  (`make docs/html`) instead of truncating the capture at the `/` and
+  reporting a false missing-target warning; matches how the command-surface
+  Makefile parser already preserves slash-containing target names.
+- `agentready batch --config <path>` now resolves a relative config path
+  once, against the caller's working directory, instead of passing it
+  through unchanged to every target repo (where it would be re-resolved
+  against each different repo root and typically not found).
+
+## [0.2.0] - 2026-06-08
+
 ### Changed
 - Action runtime migration: the first-party GitHub Action now declares `using: 'node24'` (was `node20`), ahead of GitHub retiring the Node 20 action runtime in 2026. CI runs on Node 24 too, so the bundled Action is exercised on its target runtime, and the code-scanning upload step is bumped to `github/codeql-action/upload-sarif` **v4** (pinned to the v4.36.1 commit SHA `87557b9c84dde89fdd9b10e88954ac2f4248e463`), which also runs on Node 24. The README workflow example and CI docs are updated to Node 24.
 - The package is published under the scoped name **`@napetrov/agentready`** (the unscoped `agentready` name is already taken on npm). The `agentready`/`agentready-mcp` command names are unchanged; only the package identity moves, so `npx @napetrov/agentready scan .` and `require('@napetrov/agentready')` are the published entry points. `publishConfig.access` is set to `public` so the scoped package publishes publicly. README, the pack smoke test, and the product docs are updated to match.
@@ -100,6 +468,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Safety-signal detector for package scripts: install-time lifecycle hooks, destructive shell commands, network-download-piped-to-shell commands, and deploy/publish paths. Surfaced as typed `safetySignals` evidence with corresponding `safety.*` findings (destructive and network-exec are warnings; install hooks and deploy/publish are informational).
 
 ### Fixed
+- Extensionless fuzz-corpus seed files under test corpus directories are treated
+  as intentional fixture data, keeping large checked-in fuzz payloads from
+  surfacing as warning-level context-friction findings.
+- Large generated/test fixture artifacts, including baseline and generated
+  snapshot-style files, are suppressed as intentional generated data when they
+  are in explicit generated or test fixture locations.
+- Generated or vendored minified files are no longer emitted as minified-file
+  readiness warnings; they remain visible in inventory counts without
+  score-gating repos for intentional bundled assets.
+- Large text snapshot/golden/fixture artifacts in benchmark-style snapshot
+  directories are now downgraded to informational fixture data findings instead
+  of warning/error `files.large` readiness blockers, while generic large text
+  files remain score-gating.
+- README/documentation symlinks can satisfy documentation detection without
+  exposing symlinked manifests, workflows, or other detector-read files to
+  downstream readers that would follow targets outside the repository.
 - The CI bare-`tsc` build matcher no longer matches `vue-tsc` (a type-checker):
   a left `(?<![\w-])` boundary excludes the hyphenated suffix, so a CI step that
   runs only `vue-tsc` is no longer credited with build coverage.

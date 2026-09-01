@@ -1,4 +1,5 @@
 import type {
+  CommandReferenceKind,
   LocalReadinessConfig,
   LocalReadinessFile,
   LocalReadinessReport,
@@ -7,38 +8,98 @@ import type {
   SafetyCategory,
 } from '../core/types'
 
-type EvidenceForChecks = Omit<LocalReadinessReport, 'findings' | 'summary'>
+type EvidenceForChecks = Omit<
+  LocalReadinessReport,
+  | 'findings'
+  | 'summary'
+  | 'repositoryEvidence'
+  | 'designState'
+  | 'dimensions'
+  | 'autonomyEnvelope'
+  | 'readinessProfile'
+  | 'reportContract'
+>
 
 // A `docs/` or `doc/` directory anywhere in the tree (matched together with the
 // file's `documentation` flag so a stray non-doc file under docs/ does not count
 // as developer documentation).
 const DOC_TREE = /(^|\/)docs?\//i
 
-const SCIENTIFIC_DATA_EXTENSIONS = new Set([
+const INTENTIONAL_DATA_EXTENSIONS = new Set([
   '.csv',
+  '.htm',
+  '.html',
+  '.ipynb',
   '.tsv',
+  '.baseline',
   '.json',
+  '.jsonc',
   '.jsonl',
+  '.yaml',
+  '.yml',
+  '.lst',
   '.parquet',
+  '.pbtxt',
   '.npy',
   '.npz',
   '.h5',
   '.hdf5',
   '.mtx',
+  '.snap',
+  '.snapshot',
+  '.symbols',
+  '.types',
 ])
+
+const TEXT_FIXTURE_EXTENSIONS = new Set(['.log', '.out', '.txt'])
+
+// AGENTS.md (https://agents.md/) is the closest thing to a vendor-neutral
+// instruction entrypoint multiple agent tools already recognize; kept as a
+// fixed default (not user-configurable) since the generic `policyOptions`
+// config shape sketched in docs/product/policy-packs.md has not shipped.
+const PORTABLE_INSTRUCTION_PATHS = new Set(['AGENTS.md'])
 
 const isLikelyIntentionalDataFixture = (file: LocalReadinessFile): boolean => {
   const path = file.path.toLowerCase()
-  if (!SCIENTIFIC_DATA_EXTENSIONS.has(file.extension.toLowerCase())) {
-    return false
-  }
-  return (
+  const extension = file.extension.toLowerCase()
+  const fixturePath = (
     /^data\/[^/]+$/.test(path)
     || /^data\/(examples?|samples?|fixtures?)\//.test(path)
+    || /(^|\/)(examples?|samples?|notebooks?)\//.test(path)
     || /(^|\/)(examples?|samples?|notebooks?)\/.*\/data\//.test(path)
-    || /(^|\/)(tests?|testdata|fixtures?)\//.test(path)
-    || /(^|\/)(benchmarks?|perf)\/.*\/(data|fixtures?)\//.test(path)
+    || /(^|\/)(tests?|unit_tests?|testdata|fixtures?|golden|snapshots?)\//.test(path)
+    || /(^|\/)(benchmarks?|[^/]*benchmark[^/]*|perf)\/(?:.*\/)?(data|fixtures?|golden|snapshots?)\//.test(path)
   )
+  const textFixturePath = (
+    /(^|\/)(tests?|unit_tests?|testdata|fixtures?|golden|snapshots?)\//.test(path)
+    || /(^|\/)(benchmarks?|[^/]*benchmark[^/]*|perf)\/(?:.*\/)?(fixtures?|golden|snapshots?)\//.test(path)
+  )
+  const dataLikeExtension = INTENTIONAL_DATA_EXTENSIONS.has(extension) || (textFixturePath && TEXT_FIXTURE_EXTENSIONS.has(extension))
+  // Some C/C++ test fixtures encode large golden payloads directly in source.
+  // Keep this filename check delimiter-bound so production sources are not
+  // mistaken for fixture data.
+  const sourceEncodedTestData =
+    file.test
+    && ['.c', '.cc', '.cpp', '.cxx', '.h', '.hpp'].includes(extension)
+    && /(^|[._-])(test[_-]?data|data|fixture|fixtures|golden)([._-]|$)/.test(path.split('/').pop() ?? '')
+  // Fuzz corpora often use extensionless seed inputs; keep this narrower than
+  // "any file under corpus/" so source/config files still use normal severity.
+  const extensionlessTestCorpusData =
+    extension === ''
+    && file.test
+    && /(^|\/)([^/]+_)?corpus\//.test(path)
+  const generatedTestArtifact =
+    file.test
+    && (
+      /(^|\/)(baselines?|snapshots?|golden)\//.test(path)
+      || (
+        /(^|\/)(benches|benchmarks?|perf)\//.test(path)
+        && /(^|[._-])(baseline|bundle|bundled|fixture|generated|golden|prod|runtime|snapshot|stats|trace)([._-]|$)/.test(path.split('/').pop() ?? '')
+      )
+    )
+  if (!dataLikeExtension && !sourceEncodedTestData && !extensionlessTestCorpusData && !generatedTestArtifact) return false
+
+  return fixturePath || extensionlessTestCorpusData || generatedTestArtifact
 }
 
 /**
@@ -122,6 +183,118 @@ export const buildFindings = (
       title: 'TypeScript repository has no type-check command',
       severity: warningSeverity,
       recommendation: 'Expose a type-check command and run it in CI.',
+    })
+  }
+
+  // Command references an agent would trust from the doc/instruction surface
+  // itself, but that do not match reality. `npm-script`/`make-target` mismatches
+  // are unambiguous (the referenced name is simply absent), so they warn;
+  // `package-manager-mismatch` is a softer text heuristic (docs can legitimately
+  // discuss more than one package manager) so it stays informational.
+  const commandReferenceTitles: Record<CommandReferenceKind, string> = {
+    'npm-script': 'Instruction/README references an npm/yarn/pnpm/bun script that does not exist',
+    'make-target': 'Instruction/README references a make target that does not exist',
+    'package-manager-mismatch': 'Instruction/README references a different package manager than the lockfile',
+    'shortcut-script': 'Instruction/README references a package-manager shortcut for a script that does not exist',
+  }
+  const commandReferenceSeverity: Record<CommandReferenceKind, ReadinessSeverity> = {
+    'npm-script': warningSeverity,
+    'make-target': warningSeverity,
+    'package-manager-mismatch': 'info',
+    'shortcut-script': warningSeverity,
+  }
+  for (const reference of report.commandReferences) {
+    findings.push({
+      id: `commands.reference.${reference.kind}:${reference.path}:${reference.reference}`,
+      title: commandReferenceTitles[reference.kind],
+      severity: commandReferenceSeverity[reference.kind],
+      path: reference.path,
+      recommendation: `"${reference.reference}" — ${reference.detail} Update the reference or add the missing command so agents can trust it.`,
+    })
+  }
+
+  // Instruction files an agent loads into context together (root-scope,
+  // always-active) that disagree on something as concrete as which package
+  // manager to use. Warning: this is a text heuristic, not proof the agent
+  // will actually get it wrong, but it is a real, findable contradiction —
+  // see `docs/product/policy-packs.md`'s deterministic-vs-LLM split for why
+  // this stays a narrow structural check rather than general contradiction
+  // detection (that lives in the optional LLM analyze layer). Uses
+  // `warningSeverity` (not a bare `'warning'` literal) so `errorOnWarnings`
+  // escalates it consistently with every other warning-level rule here.
+  for (const contradiction of report.instructionContradictions) {
+    findings.push({
+      id: `instructions.contradiction.${contradiction.kind}:${contradiction.paths.join(':')}`,
+      title: 'Agent instruction files disagree with each other',
+      severity: warningSeverity,
+      recommendation: `${contradiction.detail} An agent loading both files at once has no way to tell which one is authoritative — reconcile them or scope one to a specific context.`,
+    })
+  }
+
+  // Review-routing surfaces. Both are informational: neither blocks an agent
+  // from making a change, but their absence means a human (or the agent
+  // itself) has to guess who should review it and what evidence to include.
+  // CODEOWNERS matters most once there's more than one likely reviewer, so
+  // it's scoped to non-trivial repos the same way docs.developer.thin is; a
+  // PR template costs nothing at any repo size, so it always applies.
+  if (sourceFileCount > 20 && !report.governance.codeownersPath) {
+    findings.push({
+      id: 'docs.codeowners.missing',
+      title: 'No CODEOWNERS file detected',
+      severity: 'info',
+      recommendation: 'Add a CODEOWNERS file (repo root, .github/, or docs/) so PRs route to the right reviewer automatically.',
+    })
+  }
+
+  // One finding per directory (id suffix + path), not one aggregate finding
+  // listing all of them -- diff/regression matching keys on id+path
+  // (see scan-engine.ts's findingKey), so a single constant-id finding would
+  // make base ["src"] and head ["src", "docs"] compare equal and hide the
+  // newly-uncovered "docs" directory from newFindings/resolvedFindings.
+  for (const directory of report.governance.uncoveredActiveDirectories ?? []) {
+    findings.push({
+      id: `docs.codeowners.coverage-gap:${directory}`,
+      title: 'CODEOWNERS does not appear to cover an actively-changed directory',
+      severity: 'info',
+      path: directory,
+      recommendation: `Add CODEOWNERS coverage for "${directory}". This directory saw sustained recent commit activity (from local git history) but no matching CODEOWNERS pattern, so PRs touching it may route to no reviewer.`,
+    })
+  }
+
+  // Fixed high-risk paths (.github/**, .claude/**, AGENTS.md, auth/,
+  // migrations/, deploy/, ...) checked against CODEOWNERS regardless of
+  // recent commit activity -- unlike the git-activity-derived coverage-gap
+  // check above, a rarely touched but high-risk path (a deploy script) never
+  // accumulates the commit count that check requires. Both info by default,
+  // like the activity-derived gap check; the `enterprise` policy pack
+  // escalates them (see checks/policy-packs.ts) since routing review for
+  // these specific paths matters more for organization-wide rollout.
+  for (const coverage of report.governance.protectedPathCoverage ?? []) {
+    if (!coverage.covered) {
+      findings.push({
+        id: `governance.codeowners.protected-path-gap:${coverage.pattern}`,
+        title: 'CODEOWNERS does not cover a structurally high-risk path',
+        severity: 'info',
+        path: coverage.pattern,
+        recommendation: `Add a CODEOWNERS pattern covering "${coverage.pattern}" — this path is treated as high-risk (agent/CI config, auth, migrations, deploy, ...) regardless of how often it changes.`,
+      })
+    } else if (coverage.singleOwnerRisk) {
+      findings.push({
+        id: `governance.codeowners.single-owner-risk:${coverage.pattern}`,
+        title: 'CODEOWNERS routes a high-risk path to a single individual with no backup',
+        severity: 'info',
+        path: coverage.pattern,
+        recommendation: `"${coverage.pattern}" is owned only by ${coverage.owners[0]}. Add a team or a second owner so review of this high-risk path doesn't depend on one person's availability.`,
+      })
+    }
+  }
+
+  if (!report.governance.pullRequestTemplatePath) {
+    findings.push({
+      id: 'docs.pull-request-template.missing',
+      title: 'No pull-request template detected',
+      severity: 'info',
+      recommendation: 'Add a pull-request template (.github/pull_request_template.md) describing the evidence a PR description should include (files changed and why, verification commands run, known skipped checks).',
     })
   }
 
@@ -225,6 +398,21 @@ export const buildFindings = (
       severity: warningSeverity,
       recommendation: 'Add AGENTS.md or the relevant agent-specific instruction file with repo conventions and validation commands.',
     })
+  } else if (!report.instructions.some(surface => PORTABLE_INSTRUCTION_PATHS.has(surface.path))) {
+    // Any recognized instruction surface is sufficient for `instructions.missing`
+    // above -- AgentReady deliberately does not assume one filename is
+    // universally canonical. This is a separate, lower-severity signal for
+    // repositories that center exclusively on a vendor-specific surface
+    // (e.g. only CLAUDE.md, no AGENTS.md): fine for a single-agent workflow,
+    // but a portability gap once more than one coding agent works in the
+    // repo. Default severity is `info`; the `enterprise` policy pack
+    // escalates it (see checks/policy-packs.ts).
+    findings.push({
+      id: 'instructions.portable-entrypoint.missing',
+      title: 'Agent instructions are not exposed through a portable entrypoint',
+      severity: 'info',
+      recommendation: `Add ${[...PORTABLE_INSTRUCTION_PATHS].join(' or ')} alongside any tool-specific instruction file so agents other than the one it targets can still find repo conventions.`,
+    })
   }
 
   for (const surface of report.instructions.filter(surface => surface.localPrivate)) {
@@ -270,12 +458,15 @@ export const buildFindings = (
   }
 
   for (const file of files.filter(file => file.minified && !config.allowMinifiedFiles)) {
+    const generatedAsset = file.generated
     findings.push({
       id: `files.minified:${file.path}`,
       title: 'Minified file is checked into the repository',
-      severity: warningSeverity,
+      severity: generatedAsset ? 'info' : warningSeverity,
       path: file.path,
-      recommendation: 'Prefer generated build output outside source control, or ignore it in AgentReady policy if intentional.',
+      recommendation: generatedAsset
+        ? 'Keep generated or vendored minified assets documented and consider AgentReady ignore paths if agents do not need to inspect them.'
+        : 'Prefer generated build output outside source control, or ignore it in AgentReady policy if intentional.',
     })
   }
 
@@ -302,6 +493,43 @@ export const buildFindings = (
       severity: safetySeverity[signal.category],
       path: 'package.json',
       recommendation: `${signal.notes[0]} Document whether agents may run "${signal.script}", and gate it behind explicit review if it is unsafe.`,
+    })
+  }
+
+  // Capability surfaces the risk-tier classifier flagged as blast-radius
+  // `high` (arbitrary-command hooks, MCP server configs, plugin manifests —
+  // see detectCapabilitySurfaces). Informational: presence is not itself a
+  // problem, but an agent (or reviewer) should know which surfaces actually
+  // widen what the agent can do, not just that "a capability surface exists".
+  // Composite risk: an agent-tool hook that fires automatically (no explicit
+  // user action) and whose command invokes a package-manager install command.
+  // Checking out an untrusted branch and starting a session on it can run
+  // that branch's own install-time lifecycle scripts before anyone reviews
+  // them -- neither `safety.install-hook` (package-script hooks only) nor
+  // `safety.capability.high-risk` (presence, not what/when a hook runs)
+  // names this specific chained risk.
+  for (const risk of report.hookExecutionRisks) {
+    findings.push({
+      // Includes the command, not just path+event: a settings file can
+      // configure more than one automatic-event matcher group with its own
+      // install command (e.g. two SessionStart entries), and `diff` keys
+      // findings by id+path -- an id of just path+event would collide across
+      // those, silently hiding a second install command as a "new finding".
+      id: `safety.agent-hook.executes-repository-code:${risk.path}:${risk.event}:${risk.command}`,
+      title: 'Agent session hook automatically executes a dependency-install command',
+      severity: warningSeverity,
+      path: risk.path,
+      recommendation: `The "${risk.event}" hook in ${risk.path} runs "${risk.command}" automatically, with no explicit user action. If an agent checks out an untrusted branch, this can execute that branch's own install-time lifecycle scripts before anyone reviews it. Consider gating this behind an explicit, reviewed step instead.`,
+    })
+  }
+
+  for (const surface of report.capabilities.filter(surface => surface.riskTier === 'high')) {
+    findings.push({
+      id: `safety.capability.high-risk:${surface.path}`,
+      title: `High blast-radius agent capability surface: ${surface.kind}`,
+      severity: 'info',
+      path: surface.path,
+      recommendation: `${surface.notes[0]} Review what this ${surface.tool} ${surface.kind} surface actually grants access to, and route it through an approval workflow before trusting it.`,
     })
   }
 

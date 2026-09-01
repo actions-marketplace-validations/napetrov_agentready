@@ -56,11 +56,12 @@ Known dogfood regression matrix:
 
 ### P0 — Release blockers / product decisions
 
-- [x] **Pick the npm package identity.** Published as the scoped
+- [x] **Pick the npm package identity.** The intended package identity is the scoped
   **`@napetrov/agentready`** (the unscoped `agentready` name is taken). Updated
-  `package.json` (name + `publishConfig.access: public`), README `npx` examples,
-  the product docs, and the pack-smoke `require` expectation. The `agentready`
-  bin name is unchanged. _(S, decision)_
+  `package.json` (name + `publishConfig.access: public`), the product docs, and
+  the pack-smoke `require` expectation. The `agentready` bin name is unchanged.
+  The package is not published yet; README install instructions must not imply
+  npm availability before the first release. _(S, decision)_
 - [x] **Keep dogfood outputs out of the repo.** Store real-repo scan outputs as
   CI artifacts, job summaries, scratch files, or release-note drafts. Do not add
   per-run evaluation markdown to the tracked tree; sanitized summaries may keep
@@ -103,6 +104,25 @@ Known dogfood regression matrix:
   `github/codeql-action/upload-sarif` v4 (pinned to the v4.36.1 SHA). Dependabot
   continues to bump the pinned SHA on its weekly github-actions schedule. _(S)_
 
+
+### P2 — Product trust and adoption polish
+
+- [ ] **README first-impression pass.** Keep install instructions truthful while
+  npm is unpublished, explain AgentReady versus CI/lint/Scorecard/security
+  scanners, and link sample reports before the architecture deep dive. _(S)_
+- [ ] **Sample reports.** Maintain compact examples for a high-readiness repo and
+  an improvement-plan repo under `examples/reports/`; these are product examples,
+  not raw dogfood artifacts. _(S)_
+- [ ] **v0.3 issue drafts / milestone.** Keep ready-to-open issue drafts in
+  `docs/roadmap/v0.3-issue-drafts.md` until they are mirrored into GitHub
+  Issues. _(S)_
+- [x] **Policy-pack design.** Delivered; see the "Policy packs" bullet under
+  "P2 — Semantic CI & policy" below for the shipped shape (`default` +
+  `enterprise`, severity adjustment without mutating raw evidence).
+- [ ] **Evaluation story.** Publish a small benchmark plan that compares
+  AgentReady findings against real coding-agent friction across a mixed repo
+  corpus. Keep raw artifacts outside the tracked repo. _(M)_
+
 ### P2 — Depth and differentiation
 
 - [ ] **Instruction quality as a first-class release story.** The Intel repos
@@ -110,11 +130,38 @@ Known dogfood regression matrix:
   actionable commands, scoped ownership, contradictions, stale paths, and
   duplicate/overlapping guidance. The optional analyze layer already has a
   starting instruction-quality analyzer; connect its output to docs and dogfood
-  examples without making core scanning depend on a model. _(M/L)_
-- [ ] **Scientific/ML policy pack.** Capture expectations for repositories that
-  intentionally keep sample datasets, notebooks, generated bindings, or heavy CI
-  orchestration. Keep the core scanner descriptive; use policy/config to tune
-  severity. _(L)_
+  examples without making core scanning depend on a model. One deterministic
+  slice of "contradictions" (cross-file package-manager mismatch) shipped —
+  see "Instruction-file overlap / contradiction checks" below; the rest
+  (stale paths, duplicate/overlapping prose guidance) remains open. _(M/L)_
+- [x] **Scientific/ML policy pack** — delivered (partial): `ml-scientific`
+  (`lib/repo-readiness/checks/policy-packs.ts`) de-escalates warning-level
+  `files.large` findings and `commands.lint.missing` to `info`, covering the
+  "intentionally keep sample datasets" and "heavy CI orchestration"
+  expectations from `docs/product/policy-packs.md`. An error-level
+  `files.large` finding (an unrecognized, non-fixture, non-binary large file
+  over `largeFileErrorBytes`) is deliberately left alone -- not the "routine
+  sample data" case this pack is about, and still gateable under `--fail-on
+  error`. Generated-bindings/vendored-code context boundaries remain open (no
+  dedicated deterministic finding to attach a policy adjustment to yet). _(L)_
+- [x] **Minimal git-history ownership signal.** `detectCodeownersCoverageGaps`
+  (`lib/repo-readiness/detectors/governance.ts`) flags top-level directories
+  with sustained recent commit activity (local git history only, bounded to
+  the most recent commits, no network calls) that no CODEOWNERS pattern
+  appears to cover, as `docs.codeowners.coverage-gap` (info). Deliberately
+  narrow: top-level-directory granularity via the `ignore` package's
+  gitignore-style matching, not full per-file blame-based ownership
+  inference or CODEOWNERS-entry suggestion — those remain open under "git
+  churn and risk signals" above and need their own design pass. _(S)_
+- **GitHub-org-API-integrated batch scanning: explicitly not planned.**
+  `batch`'s "no hosted service required" design (delivered above) is
+  deliberate, not an interim state: auto-discovering/cloning an org's repos
+  would require AgentReady itself to make network calls and hold a GitHub
+  credential, breaking the no-external-service guarantee every other command
+  relies on. The supported path is cloning an org's repos with an existing
+  tool (`gh repo list` piped into `gh repo clone`, a CI job, …) and pointing
+  `batch --root` at the result — see the README's "Batch (portfolio) scans" section and
+  `docs/product/features.md`'s "Non-Goals For The Core".
 
 ## Feedback triage
 
@@ -253,10 +300,55 @@ Verified against the current `main`/branch code before accepting:
   was recognized) to avoid false positives. Parsing is read-only; workflow
   correctness is still delegated to actionlint/ShellCheck rather than
   reimplemented. _(M)_
-- [ ] **Policy packs.** Keep built-in rules in TypeScript; add optional
-  policy-pack ingestion over the AgentReady JSON evidence (OPA/Conftest-style).
-  Add `@agentready/policy-default` once the package split happens. _(L)_
-- [ ] **Instruction-file overlap / contradiction checks.** _(M)_
+- [x] **Policy packs** (`docs/product/policy-packs.md`) — **delivered**: a
+  typed `PolicyPack`/`PolicyResult` model (`core/policy.ts`), a no-op `default`
+  pack and a real `enterprise` pack (`checks/policy-packs.ts`, four severity
+  escalations), `--policy <name>` on `scan`/`diff`, and a `policy` Action input.
+  Shipped as first-class TypeScript rather than external OPA/Conftest-style
+  ingestion over JSON evidence — matches the design doc, not this bullet's
+  original OPA framing. `oss` and `ml-scientific` packs are now delivered too
+  (see `docs/product/policy-packs.md`); a config-file `policy`/`policyOptions`
+  shape remains open, and `@agentready/policy-default` as a separate package
+  still depends on the package-split work below. _(L)_
+- [x] **Instruction-file overlap / contradiction checks** — delivered (one
+  signal): `detectInstructionContradictions`
+  (`lib/repo-readiness/detectors/instruction-contradictions.ts`) flags
+  root-scope, always-active instruction files that each exclusively reference
+  a different single package manager, as
+  `instructions.contradiction.package-manager` (warning). Broader semantic
+  contradiction detection stays in the optional LLM analyze layer
+  (`lib/analyze/analyzers/contradiction.ts`), matching the
+  deterministic-core/LLM-layer split this backlog already commits to. _(M)_
+- [x] **Capability-surface risk tiers** — delivered: `CapabilitySurfaceEvidence`
+  gained a `riskTier` (`low`/`medium`/`high`) field. MCP configs, hook scripts,
+  plugin manifests, and a Claude Code settings file that configures a
+  non-empty `hooks` block are `high` (arbitrary commands, or a tool set static
+  config can't verify); a settings file with no `hooks` key is `medium`; LSP
+  config and skills stay `low`. New `safety.capability.high-risk` (info)
+  finding per `high`-tier surface; the `enterprise` policy pack escalates it
+  to warning. _(M)_
+- [x] **Local multi-repo/portfolio batch mode** — delivered:
+  `agentready batch [paths...] [--root <dir>]` (`core/portfolio.ts`) scans
+  every target independently through the same `scanLocalReadiness` pipeline —
+  one broken repo never aborts the batch, it's just captured as a per-repo
+  scan error — and aggregates into `summary`/`json`/`markdown` output
+  (`report.summary.averageScore/minScore/maxScore`, severity totals, and
+  per-repo `topFindings`), gated by `--min-score` and
+  `--fail-on-scan-error`/`--no-fail-on-scan-error`. No hosted service
+  required. Schema: `schemas/portfolio-report.schema.json`. _(M)_
+- [x] **Empirical validation scaffold** (`docs/product/evaluation.md`) —
+  **delivered (scaffold only)**: `npm run agentready:benchmark`
+  (`bin/agentready-evaluate.ts`) automates the deterministic half of the
+  "Minimal public benchmark" — a fixed 10-repo, profile-diverse corpus
+  (`reports/evaluation/corpus.json`, one entry per profile from the doc,
+  including AgentReady itself scanned in place, never cloned), scans each
+  repo, and generates `reports/evaluation/README.md` with the corpus table,
+  scan commands, and finding counts by category. Giving the same bounded task
+  to real coding agents and recording their friction is explicitly NOT
+  automated — that needs an actual agent run and human judgment, so the
+  report marks the friction/decision/true-false-positive sections `TODO`
+  rather than inventing data. Completing the milestone for real is future
+  work; see `docs/product/evaluation.md`'s Status section. _(M)_
 
 ## P2 — LLM / agentic analytics layer (optional, opt-in)
 
@@ -299,7 +391,9 @@ Proposed steps where the layer can plug in (to be refined in the next PR):
   enforces a floor in CI, catching plumbing regressions (broken hallucination
   guards, dropped score folding, id drift) without calling a model; the same
   harness can score a live model in a one-off recording run. Human-agreement and
-  task-friction correlation (via the benchmark harness) remain future work. _(L)_
+  task-friction correlation (via the empirical validation scaffold above) remain
+  future work — that scaffold generates the corpus/scan half but not real agent
+  runs. _(L)_
 
 ## P2 — Companion-tool orchestration (do not reimplement)
 

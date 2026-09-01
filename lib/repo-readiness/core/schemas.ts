@@ -1,11 +1,24 @@
 import { z } from 'zod'
 import type {
+  AgentStage,
+  AutonomyStageResult,
+  CapabilitySurfaceEvidence,
+  DesignStateSummary,
+  DocumentSurfaceEvidence,
   CiEvidence,
   CommandEvidence,
+  CommandReferenceEvidence,
+  GovernanceEvidence,
+  HookExecutionRiskEvidence,
+  InstructionContradictionEvidence,
   LocalReadinessConfig,
   LocalReadinessFile,
   LocalReadinessReport,
+  PortfolioReport,
+  ProtectedPathCoverageEvidence,
+  RepositoryEvidence,
   ReadinessDiffReport,
+  ReadinessDimensionScore,
   ReadinessFinding,
 } from './types'
 
@@ -32,7 +45,91 @@ export const commandEcosystemSchema = z.enum([
   'autotools',
 ])
 export const capabilityKindSchema = z.enum(['mcp', 'skill', 'hook', 'plugin', 'lsp'])
+export const capabilityRiskTierSchema = z.enum(['low', 'medium', 'high'])
 export const safetyCategorySchema = z.enum(['install-hook', 'destructive', 'network-exec', 'deploy'])
+export const evidenceConfidenceSchema = z.enum(['low', 'medium', 'high'])
+export const evidenceSourceKindSchema = z.enum(['file', 'manifest', 'workflow', 'config', 'inference'])
+export const documentRoleSchema = z.enum([
+  'entrypoint',
+  'development',
+  'architecture',
+  'decision-record',
+  'contribution',
+  'environment',
+  'agent-instruction',
+  'operation',
+  'api',
+])
+export const repositoryRootKindSchema = z.enum(['app', 'library', 'package', 'service', 'tool', 'docs', 'test', 'unknown'])
+export const architectureBoundaryRoleSchema = z.enum([
+  'entrypoint',
+  'public-api',
+  'internal-module',
+  'adapter',
+  'domain',
+  'infrastructure',
+  'test-support',
+  'generated',
+  'unknown',
+])
+export const readinessRuleCategorySchema = z.enum(['docs', 'commands', 'ci', 'instructions', 'files', 'safety'])
+
+export const readinessDimensionScoreSchema = z.strictObject({
+  category: readinessRuleCategorySchema,
+  score: z.number().int().min(0).max(100),
+  findingCount: z.number().int().min(0),
+  bySeverity: z.strictObject({
+    info: z.number().int().min(0),
+    warning: z.number().int().min(0),
+    error: z.number().int().min(0),
+  }),
+})
+
+const DIMENSION_CATEGORY_COUNT = readinessRuleCategorySchema.options.length
+
+/**
+ * One entry per `readinessRuleCategorySchema` value. `.length` alone rejects
+ * the `dimensions: []` case; combined with the size-6 uniqueness check below,
+ * an array of exactly 6 distinct categories drawn from a 6-value enum is
+ * necessarily a full, non-duplicated set, so a single refine covers both
+ * "missing a category" and "reports one twice".
+ */
+export const agentStageSchema = z.enum(['orient', 'bootstrap', 'navigate', 'edit', 'verify', 'review', 'merge', 'deploy'])
+export const autonomyStatusSchema = z.enum(['ready', 'not_yet_ready', 'blocked'])
+
+export const autonomyStageResultSchema = z.strictObject({
+  stage: agentStageSchema,
+  status: autonomyStatusSchema,
+  findingIds: z.array(z.string()),
+})
+
+const AGENT_STAGE_COUNT = agentStageSchema.options.length
+
+/** Same one-entry-per-enum-value shape as `readinessDimensionScoreListSchema` below, for `AGENT_STAGES` instead of `RULE_CATEGORIES`. */
+export const autonomyStageResultListSchema = z
+  .array(autonomyStageResultSchema)
+  .length(AGENT_STAGE_COUNT)
+  .refine(results => new Set(results.map(result => result.stage)).size === AGENT_STAGE_COUNT, {
+    error: `autonomyEnvelope must include exactly one entry for each stage (${agentStageSchema.options.join(', ')})`,
+  })
+
+export const readinessDimensionScoreListSchema = z
+  .array(readinessDimensionScoreSchema)
+  .length(DIMENSION_CATEGORY_COUNT)
+  .refine(dimensions => new Set(dimensions.map(dimension => dimension.category)).size === DIMENSION_CATEGORY_COUNT, {
+    error: `dimensions must include exactly one entry for each category (${readinessRuleCategorySchema.options.join(', ')})`,
+  })
+
+export const designStateCategorySchema = z.enum([
+  'documentation-evidence',
+  'architecture-boundary',
+  'verification-locality',
+  'context-selection',
+  'generated-content',
+  'safety',
+  'agent-instruction',
+  'ci-alignment',
+])
 
 export const instructionEcosystemSchema = z.enum([
   'codex',
@@ -63,12 +160,24 @@ export const instructionActivationSchema = z.enum([
   'unknown',
 ])
 
+export const findingScopeSchema = z.enum(['root', 'package', 'path', 'advisory'])
+
+// Shared by every report shape that advertises nested finding-level
+// experimental keys (the scan report's `reportContract` and each portfolio
+// repo result). See ADR 0005.
+export const experimentalFindingFieldSchema = z.enum(['confidence', 'scope'])
+
 export const readinessFindingSchema = z.strictObject({
   id: z.string().min(1),
   title: z.string().min(1),
   severity: severitySchema,
   path: z.string().optional(),
   recommendation: z.string().min(1),
+  // Optional, rule-owned calibrated-scoring inputs (ADR 0005). Absent = neutral
+  // (confidence `high`, scope `package`), so a finding that omits them scores
+  // and validates exactly as before.
+  confidence: evidenceConfidenceSchema.optional(),
+  scope: findingScopeSchema.optional(),
 })
 
 export const localReadinessFileSchema = z.strictObject({
@@ -87,10 +196,42 @@ export const commandEvidenceSchema = z.strictObject({
   packageManager: packageManagerSchema.optional(),
   ecosystems: z.array(commandEcosystemSchema),
   scripts: z.array(z.string()),
+  makeTargets: z.array(z.string()),
   hasBuild: z.boolean(),
   hasTest: z.boolean(),
   hasLint: z.boolean(),
   hasTypeCheck: z.boolean(),
+})
+
+export const commandReferenceKindSchema = z.enum(['npm-script', 'make-target', 'package-manager-mismatch', 'shortcut-script'])
+
+export const commandReferenceEvidenceSchema = z.strictObject({
+  path: z.string(),
+  reference: z.string(),
+  kind: commandReferenceKindSchema,
+  detail: z.string(),
+})
+
+export const protectedPathCoverageEvidenceSchema = z.strictObject({
+  pattern: z.string(),
+  covered: z.boolean(),
+  owners: z.array(z.string()),
+  singleOwnerRisk: z.boolean(),
+})
+
+export const governanceEvidenceSchema = z.strictObject({
+  codeownersPath: z.string().optional(),
+  pullRequestTemplatePath: z.string().optional(),
+  uncoveredActiveDirectories: z.array(z.string()).optional(),
+  protectedPathCoverage: z.array(protectedPathCoverageEvidenceSchema).optional(),
+})
+
+export const instructionContradictionKindSchema = z.enum(['package-manager'])
+
+export const instructionContradictionEvidenceSchema = z.strictObject({
+  kind: instructionContradictionKindSchema,
+  paths: z.tuple([z.string(), z.string()]),
+  detail: z.string(),
 })
 
 export const ciCommandKindSchema = z.enum(['install', 'lint', 'typecheck', 'test', 'build'])
@@ -123,6 +264,7 @@ export const capabilitySurfaceSchema = z.strictObject({
   path: z.string(),
   tool: z.string(),
   notes: z.array(z.string()),
+  riskTier: capabilityRiskTierSchema,
 })
 
 export const safetySignalSchema = z.strictObject({
@@ -131,6 +273,180 @@ export const safetySignalSchema = z.strictObject({
   script: z.string(),
   command: z.string(),
   notes: z.array(z.string()),
+})
+
+export const hookExecutionRiskSchema = z.strictObject({
+  path: z.string(),
+  event: z.string(),
+  command: z.string(),
+})
+
+export const evidenceSourceSchema = z.strictObject({
+  detector: z.string(),
+  kind: evidenceSourceKindSchema,
+  path: z.string().optional(),
+  note: z.string().optional(),
+})
+
+export const evidenceClaimSchema = z.strictObject({
+  kind: z.string(),
+  value: z.string(),
+  confidence: evidenceConfidenceSchema,
+  signals: z.array(z.string()),
+  sources: z.array(evidenceSourceSchema),
+})
+
+export const documentCommandBlockSchema = z.strictObject({
+  index: z.number().int().min(0),
+  language: z.string().optional(),
+  text: z.string(),
+  truncated: z.boolean(),
+})
+
+export const documentSurfaceSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('document-surface'),
+  path: z.string(),
+  paths: z.array(z.string()),
+  roleClaims: z.array(evidenceClaimSchema.extend({
+    kind: z.literal('document-role'),
+    value: documentRoleSchema,
+  })),
+  title: z.string().optional(),
+  headings: z.array(z.string()),
+  linkedPaths: z.array(z.string()),
+  commandBlocks: z.array(documentCommandBlockSchema),
+  sources: z.array(evidenceSourceSchema),
+})
+
+export const repositoryRootSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('repository-root'),
+  rootKind: repositoryRootKindSchema,
+  path: z.string(),
+  paths: z.array(z.string()),
+  languages: z.array(z.string()),
+  packageManager: packageManagerSchema.optional(),
+  manifests: z.array(z.string()),
+  sourceFiles: z.number(),
+  testFiles: z.number(),
+  documentationFiles: z.number(),
+  generatedFiles: z.number(),
+  confidence: evidenceConfidenceSchema,
+  sources: z.array(evidenceSourceSchema),
+})
+
+export const architectureBoundarySchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('architecture-boundary'),
+  path: z.string(),
+  paths: z.array(z.string()),
+  role: architectureBoundaryRoleSchema,
+  signals: z.array(z.string()),
+  confidence: evidenceConfidenceSchema,
+  sources: z.array(evidenceSourceSchema),
+})
+
+export const verificationSurfaceSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('verification-surface'),
+  paths: z.array(z.string()),
+  rootIds: z.array(z.string()),
+  commandKind: ciCommandKindSchema,
+  commandText: z.string().optional(),
+  workflowJobId: z.string().optional(),
+  confidence: evidenceConfidenceSchema,
+  sources: z.array(evidenceSourceSchema),
+})
+
+export const dependencyHintSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('dependency-hint'),
+  paths: z.array(z.string()),
+  sources: z.array(evidenceSourceSchema),
+  fromRootId: z.string(),
+  toRootId: z.string().optional(),
+  relationship: z.enum(['workspace', 'manifest', 'import-path', 'unknown']),
+  confidence: evidenceConfidenceSchema,
+})
+
+export const testProximityHintSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('test-proximity-hint'),
+  paths: z.array(z.string()),
+  sources: z.array(evidenceSourceSchema),
+  rootId: z.string(),
+  nearbyTestPaths: z.array(z.string()),
+  confidence: evidenceConfidenceSchema,
+})
+
+export const documentationProximityHintSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('documentation-proximity-hint'),
+  paths: z.array(z.string()),
+  sources: z.array(evidenceSourceSchema),
+  rootId: z.string(),
+  documentSurfaceIds: z.array(z.string()),
+  roleClaims: z.array(documentRoleSchema),
+  confidence: evidenceConfidenceSchema,
+})
+
+export const generatedPressureSchema = z.strictObject({
+  id: z.string(),
+  kind: z.literal('generated-pressure'),
+  paths: z.array(z.string()),
+  sources: z.array(evidenceSourceSchema),
+  rootId: z.string(),
+  generatedFileRatio: z.number(),
+  generatedBytesRatio: z.number(),
+  confidence: evidenceConfidenceSchema,
+})
+
+export const repositoryTopologySchema = z.strictObject({
+  dependencyHints: z.array(dependencyHintSchema),
+  testProximityHints: z.array(testProximityHintSchema),
+  documentationProximityHints: z.array(documentationProximityHintSchema),
+  generatedPressure: z.array(generatedPressureSchema),
+  metrics: z.strictObject({
+    rootCount: z.number(),
+    languageCount: z.number(),
+    sourceToNearbyTestRatio: z.number().optional(),
+    docsToSourceProximityRatio: z.number().optional(),
+    generatedFileRatio: z.number(),
+    largestRootShare: z.number(),
+    publicApiSurfaceCount: z.number(),
+    rootsWithoutLocalTests: z.number(),
+    rootsWithoutLocalDocs: z.number(),
+    verificationMappedRootCount: z.number(),
+  }),
+})
+
+export const repositoryEvidenceSchema = z.strictObject({
+  roots: z.array(repositoryRootSchema),
+  boundaries: z.array(architectureBoundarySchema),
+  documentSurfaces: z.array(documentSurfaceSchema),
+  verificationSurfaces: z.array(verificationSurfaceSchema),
+  topology: repositoryTopologySchema,
+})
+
+export const designStateInsightSchema = z.strictObject({
+  id: z.string(),
+  category: designStateCategorySchema,
+  title: z.string(),
+  severity: severitySchema,
+  gateable: z.boolean(),
+  summary: z.string(),
+  evidenceIds: z.array(z.string()),
+  findingIds: z.array(z.string()).optional(),
+  paths: z.array(z.string()),
+  confidence: evidenceConfidenceSchema,
+  recommendation: z.string().optional(),
+})
+
+export const designStateSummarySchema = z.strictObject({
+  strengths: z.array(designStateInsightSchema),
+  risks: z.array(designStateInsightSchema),
+  ambiguities: z.array(designStateInsightSchema),
 })
 
 export const instructionSurfaceSchema = z.strictObject({
@@ -144,6 +460,68 @@ export const instructionSurfaceSchema = z.strictObject({
   legacy: z.boolean(),
   localPrivate: z.boolean(),
   notes: z.array(z.string()),
+})
+
+export const coverageSurfaceKindSchema = z.enum([
+  'instruction-surfaces',
+  'command-ecosystems',
+  'ci-workflows',
+  'capability-surfaces',
+  'governance',
+  'documentation-roles',
+  'repository-topology',
+])
+
+export const riskVerdictSchema = z.enum(['low', 'medium', 'high', 'unknown'])
+
+/**
+ * The maximum number of coverage surfaces, i.e. the size of the
+ * `CoverageSurfaceKind` taxonomy. Exported so the JSON Schema generator can
+ * enumerate the valid cross-field coverage combinations (see
+ * `bin/agentready-emit-schemas.ts`).
+ */
+export const COVERAGE_SURFACE_KIND_COUNT = coverageSurfaceKindSchema.options.length
+
+export const coverageReportSchema = z
+  .strictObject({
+    // Counts of distinct CoverageSurfaceKind values, so both are bounded by
+    // the taxonomy size (kept in sync via `.options.length`).
+    applicableSurfaces: z.number().int().min(0).max(COVERAGE_SURFACE_KIND_COUNT),
+    assessedSurfaces: z.number().int().min(0).max(COVERAGE_SURFACE_KIND_COUNT),
+    ratio: z.number().min(0).max(1),
+    gaps: z.array(z.strictObject({ surface: coverageSurfaceKindSchema, reason: z.string() })),
+  })
+  // Cross-field invariants: you cannot assess more surfaces than are
+  // applicable, and `ratio` is the derived value (1 when nothing applies).
+  // These are also enumerated into the published JSON Schema by the generator's
+  // `coverageInvariantOverride`, so external draft-07 consumers reject the same
+  // impossible combinations this runtime schema does.
+  .refine(coverage => coverage.assessedSurfaces <= coverage.applicableSurfaces, {
+    error: 'coverage.assessedSurfaces must not exceed coverage.applicableSurfaces',
+  })
+  .refine(
+    coverage => {
+      const expected = coverage.applicableSurfaces === 0 ? 1 : coverage.assessedSurfaces / coverage.applicableSurfaces
+      return Math.abs(coverage.ratio - expected) < 1e-9
+    },
+    { error: 'coverage.ratio must equal assessedSurfaces / applicableSurfaces (1 when applicableSurfaces is 0)' },
+  )
+
+export const readinessProfileSchema = z.strictObject({
+  readiness: autonomyStageResultListSchema,
+  risk: z.strictObject({
+    verdict: riskVerdictSchema,
+    confidence: evidenceConfidenceSchema,
+    evidenceRefs: z.array(z.string()),
+    explanation: z.string(),
+  }),
+  coverage: coverageReportSchema,
+  observability: z.strictObject({
+    verifiedLocally: z.array(coverageSurfaceKindSchema),
+    notFound: z.array(coverageSurfaceKindSchema),
+    notObservableLocally: z.array(z.string()),
+  }),
+  calibrationConfidence: evidenceConfidenceSchema,
 })
 
 export const localReadinessReportSchema = z.strictObject({
@@ -168,10 +546,32 @@ export const localReadinessReportSchema = z.strictObject({
     environment: z.array(z.string()),
   }),
   commands: commandEvidenceSchema,
+  commandReferences: z.array(commandReferenceEvidenceSchema),
+  instructionContradictions: z.array(instructionContradictionEvidenceSchema),
+  governance: governanceEvidenceSchema,
   ci: ciEvidenceSchema,
   instructions: z.array(instructionSurfaceSchema),
   capabilities: z.array(capabilitySurfaceSchema),
   safetySignals: z.array(safetySignalSchema),
+  hookExecutionRisks: z.array(hookExecutionRiskSchema),
+  repositoryEvidence: repositoryEvidenceSchema,
+  designState: designStateSummarySchema,
+  dimensions: readinessDimensionScoreListSchema,
+  autonomyEnvelope: autonomyStageResultListSchema,
+  readinessProfile: readinessProfileSchema,
+  reportContract: z.strictObject({
+    schemaVersion: z.literal('local-readiness/v2'),
+    experimentalFields: z.array(z.enum([
+      'repositoryEvidence',
+      'designState',
+      'dimensions',
+      'instructionContradictions',
+      'hookExecutionRisks',
+      'autonomyEnvelope',
+      'readinessProfile',
+    ])),
+    experimentalFindingFields: z.array(experimentalFindingFieldSchema).optional(),
+  }),
   findings: z.array(readinessFindingSchema),
   files: z.array(localReadinessFileSchema),
 })
@@ -195,6 +595,50 @@ export const readinessDiffReportSchema = z.strictObject({
   regressions: z.array(readinessFindingSchema),
 })
 
+const severityCountsSchema = z.strictObject({
+  info: z.number().int().min(0),
+  warning: z.number().int().min(0),
+  error: z.number().int().min(0),
+})
+
+// Same 0-100 contract as `readinessDimensionScoreSchema.score` — every
+// portfolio score field is derived from the same `calculateScore` output.
+const readinessScoreSchema = z.number().int().min(0).max(100)
+
+export const portfolioRepoResultSchema = z.discriminatedUnion('ok', [
+  z.strictObject({
+    path: z.string(),
+    ok: z.literal(true),
+    score: readinessScoreSchema,
+    findingCount: z.number().int().min(0),
+    bySeverity: severityCountsSchema,
+    topFindings: z.array(readinessFindingSchema),
+    experimentalFindingFields: z.array(experimentalFindingFieldSchema).optional(),
+  }),
+  z.strictObject({
+    path: z.string(),
+    ok: z.literal(false),
+    error: z.string(),
+  }),
+])
+
+export const portfolioSummarySchema = z.strictObject({
+  repoCount: z.number().int().min(0),
+  scannedCount: z.number().int().min(0),
+  scanErrorCount: z.number().int().min(0),
+  averageScore: readinessScoreSchema.nullable(),
+  minScore: readinessScoreSchema.nullable(),
+  maxScore: readinessScoreSchema.nullable(),
+  totalFindings: z.number().int().min(0),
+  bySeverity: severityCountsSchema,
+})
+
+export const portfolioReportSchema = z.strictObject({
+  generatedAt: z.string(),
+  repos: z.array(portfolioRepoResultSchema),
+  summary: portfolioSummarySchema,
+})
+
 // User-facing config. Every field is optional; the loader merges the result
 // over `defaultConfig`. Custom messages keep validation errors readable.
 export const localReadinessConfigSchema = z
@@ -208,13 +652,49 @@ export const localReadinessConfigSchema = z
   .partial()
   .strict()
 
-// Compile-time drift guards: these aliases fail to type-check if a schema's
-// inferred output stops matching the interface it represents.
-type AssertExtends<Actual extends Expected, Expected> = Actual
-type _Finding = AssertExtends<z.infer<typeof readinessFindingSchema>, ReadinessFinding>
-type _File = AssertExtends<z.infer<typeof localReadinessFileSchema>, LocalReadinessFile>
-type _Commands = AssertExtends<z.infer<typeof commandEvidenceSchema>, CommandEvidence>
-type _Ci = AssertExtends<z.infer<typeof ciEvidenceSchema>, CiEvidence>
-type _Report = AssertExtends<z.infer<typeof localReadinessReportSchema>, LocalReadinessReport>
-type _Diff = AssertExtends<z.infer<typeof readinessDiffReportSchema>, ReadinessDiffReport>
-type _Config = AssertExtends<z.infer<typeof localReadinessConfigSchema>, Partial<LocalReadinessConfig>>
+// Compile-time drift guards: each alias resolves to `true` only when the
+// schema's inferred output and the interface are mutually assignable. A
+// mismatch in either direction (schema drops/retypes a field, OR interface adds
+// one the schema does not emit) produces a type error here.
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
+const assertSchemaDriftGuards = (..._guards: true[]): void => {}
+const _finding: Exact<z.infer<typeof readinessFindingSchema>, ReadinessFinding> = true
+const _file: Exact<z.infer<typeof localReadinessFileSchema>, LocalReadinessFile> = true
+const _commands: Exact<z.infer<typeof commandEvidenceSchema>, CommandEvidence> = true
+const _commandReference: Exact<z.infer<typeof commandReferenceEvidenceSchema>, CommandReferenceEvidence> = true
+const _instructionContradiction: Exact<z.infer<typeof instructionContradictionEvidenceSchema>, InstructionContradictionEvidence> = true
+const _governance: Exact<z.infer<typeof governanceEvidenceSchema>, GovernanceEvidence> = true
+const _protectedPathCoverage: Exact<z.infer<typeof protectedPathCoverageEvidenceSchema>, ProtectedPathCoverageEvidence> = true
+const _hookExecutionRisk: Exact<z.infer<typeof hookExecutionRiskSchema>, HookExecutionRiskEvidence> = true
+const _capabilitySurface: Exact<z.infer<typeof capabilitySurfaceSchema>, CapabilitySurfaceEvidence> = true
+const _ci: Exact<z.infer<typeof ciEvidenceSchema>, CiEvidence> = true
+const _documentSurface: Exact<z.infer<typeof documentSurfaceSchema>, DocumentSurfaceEvidence> = true
+const _repositoryEvidence: Exact<z.infer<typeof repositoryEvidenceSchema>, RepositoryEvidence> = true
+const _designState: Exact<z.infer<typeof designStateSummarySchema>, DesignStateSummary> = true
+const _dimensionScore: Exact<z.infer<typeof readinessDimensionScoreSchema>, ReadinessDimensionScore> = true
+const _autonomyStageResult: Exact<z.infer<typeof autonomyStageResultSchema>, AutonomyStageResult> = true
+const _agentStage: Exact<z.infer<typeof agentStageSchema>, AgentStage> = true
+const _report: Exact<z.infer<typeof localReadinessReportSchema>, LocalReadinessReport> = true
+const _diff: Exact<z.infer<typeof readinessDiffReportSchema>, ReadinessDiffReport> = true
+const _portfolio: Exact<z.infer<typeof portfolioReportSchema>, PortfolioReport> = true
+const _config: Exact<z.infer<typeof localReadinessConfigSchema>, Partial<LocalReadinessConfig>> = true
+assertSchemaDriftGuards(
+  _finding,
+  _file,
+  _commands,
+  _commandReference,
+  _instructionContradiction,
+  _governance,
+  _protectedPathCoverage,
+  _hookExecutionRisk,
+  _ci,
+  _documentSurface,
+  _repositoryEvidence,
+  _designState,
+  _dimensionScore,
+  _autonomyStageResult,
+  _agentStage,
+  _report,
+  _diff,
+  _config,
+)

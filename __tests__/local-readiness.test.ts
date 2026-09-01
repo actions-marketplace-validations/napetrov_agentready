@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs'
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
@@ -42,10 +42,12 @@ describe('local readiness', () => {
 
   test('scans local repository readiness without GitHub input', () => {
     root = createTempRepo()
-    writeRepoFile(root, 'README.md', '# Demo\n\nRun tests with npm test.\n')
+    writeRepoFile(root, 'README.md', '# Demo\n\n## Setup\n\nRun tests:\n\n```sh\nnpm test\n```\n')
     writeRepoFile(root, 'AGENTS.md', 'Use npm test before committing.\n')
     writeRepoFile(root, 'docs/ARCHITECTURE.md', '# Architecture\n')
     writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, '.github/pull_request_template.md', '## What changed\n')
+    writeRepoFile(root, 'CODEOWNERS', '* @napetrov/maintainers\n')
     writeRepoFile(root, 'src/index.ts', 'export const value = 1\n')
     writeRepoFile(root, '__tests__/index.test.ts', 'test("value", () => expect(1).toBe(1))\n')
     writeRepoFile(root, 'package.json', JSON.stringify({
@@ -71,7 +73,95 @@ describe('local readiness', () => {
       hasTypeCheck: true,
     })
     expect(report.instructions.map(surface => surface.path)).toContain('AGENTS.md')
+    expect(report.reportContract).toEqual({
+      schemaVersion: 'local-readiness/v2',
+      experimentalFields: [
+        'repositoryEvidence',
+        'designState',
+        'dimensions',
+        'instructionContradictions',
+        'hookExecutionRisks',
+        'autonomyEnvelope',
+        'readinessProfile',
+      ],
+    })
+    expect(report.repositoryEvidence?.documentSurfaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'document-surface:README.md',
+        roleClaims: expect.arrayContaining([
+          expect.objectContaining({ value: 'entrypoint', confidence: 'high' }),
+          expect.objectContaining({ value: 'development' }),
+        ]),
+      }),
+      expect.objectContaining({
+        id: 'document-surface:AGENTS.md',
+        roleClaims: expect.arrayContaining([
+          expect.objectContaining({ value: 'agent-instruction', confidence: 'high' }),
+        ]),
+      }),
+      expect.objectContaining({
+        id: 'document-surface:docs/ARCHITECTURE.md',
+        roleClaims: expect.arrayContaining([
+          expect.objectContaining({ value: 'architecture', confidence: 'high' }),
+        ]),
+      }),
+    ]))
+    expect(report.repositoryEvidence?.topology.metrics).toMatchObject({
+      rootCount: expect.any(Number),
+      languageCount: expect.any(Number),
+      rootsWithoutLocalTests: expect.any(Number),
+      rootsWithoutLocalDocs: expect.any(Number),
+    })
+    expect(report.designState?.strengths.map(insight => insight.id)).toContain('design-state:documentation-evidence')
     expect(report.findings).toEqual([])
+    expect(validateLocalReadinessReportContract(report)).toEqual({ valid: true, errors: [] })
+  })
+
+  test('emits deterministic repository evidence and design-state markdown sections', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n\nSee [design](docs/design.md).\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test before committing.\n')
+    writeRepoFile(root, 'docs/design.md', '# Architecture\n\n## Modules\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({
+      scripts: {
+        test: 'npm --prefix packages/cli test',
+      },
+    }))
+    writeRepoFile(root, 'packages/cli/package.json', JSON.stringify({
+      scripts: {
+        test: 'jest',
+      },
+    }))
+    writeRepoFile(root, 'packages/cli/src/index.ts', 'export const cli = true\n')
+    writeRepoFile(root, 'packages/cli/__tests__/index.test.ts', 'test("cli", () => expect(true).toBe(true))\n')
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const reportAgain = scanLocalReadiness(root, { now: fixedNow })
+
+    expect(report.repositoryEvidence).toEqual(reportAgain.repositoryEvidence)
+    expect(report.designState).toEqual(reportAgain.designState)
+    expect(report.repositoryEvidence?.roots).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'root:packages/cli',
+        rootKind: 'package',
+        packageManager: 'npm',
+        manifests: ['packages/cli/package.json'],
+        sourceFiles: 1,
+        testFiles: 1,
+      }),
+    ]))
+    expect(report.repositoryEvidence?.verificationSurfaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'verification-surface:commands:test',
+        commandKind: 'test',
+        paths: ['package.json'],
+        rootIds: [],
+      }),
+    ]))
+    const markdown = formatScanMarkdown(report)
+    expect(markdown).toContain('### Repository topology')
+    expect(markdown).toContain('### Documentation roles')
+    expect(markdown).toContain('### Design-state strengths')
     expect(validateLocalReadinessReportContract(report)).toEqual({ valid: true, errors: [] })
   })
 
@@ -133,6 +223,35 @@ describe('local readiness', () => {
     expect(report.findings.map(finding => finding.id)).not.toContain('docs.readme.missing')
   })
 
+  test('accepts a root README symlink without following its target', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'packages/app/README.md', '# App\n')
+    symlinkSync('packages/app/README.md', path.join(root, 'readme.md'))
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+
+    expect(report.docs.readme).toContain('readme.md')
+    expect(report.findings.map(finding => finding.id)).not.toContain('docs.readme.missing')
+  })
+
+  test('does not give root README credit to external documentation symlinks', () => {
+    root = createTempRepo()
+    const outside = createTempRepo()
+    writeRepoFile(outside, 'README.md', '# Outside\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+    symlinkSync(path.join(outside, 'README.md'), path.join(root, 'README.md'))
+
+    try {
+      const report = scanLocalReadiness(root, { now: fixedNow })
+
+      expect(report.docs.readme).not.toContain('README.md')
+      expect(report.findings.map(finding => finding.id)).toContain('docs.readme.missing')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
   test('rejects a scan target that does not exist', () => {
     expect(() => scanLocalReadiness(path.join(tmpdir(), 'agentready-missing-xyz-404'))).toThrow(/does not exist/)
   })
@@ -161,6 +280,7 @@ describe('local readiness', () => {
       'commands.lint.missing',
       'commands.test.missing',
       'commands.typecheck.missing',
+      'docs.pull-request-template.missing',
       'docs.readme.missing',
       'instructions.missing',
     ])
@@ -216,6 +336,7 @@ describe('local readiness', () => {
       },
     }))
     writeRepoFile(root, 'public/app.min.js', 'var a=1;')
+    writeRepoFile(root, 'public/vendor/jquery/jquery.min.js', 'var jquery=true;')
     // A large binary asset: not loaded into an agent's text context, so it is
     // surfaced at info rather than dragging the score like a large text file.
     writeRepoFile(root, 'data/model.bin', Buffer.alloc(1_100_000, 1))
@@ -223,7 +344,7 @@ describe('local readiness', () => {
     const report = scanLocalReadiness(root, { now: fixedNow })
 
     expect(report.summary.largeFiles).toBe(1)
-    expect(report.summary.minifiedFiles).toBe(1)
+    expect(report.summary.minifiedFiles).toBe(2)
     expect(report.findings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'files.large:data/model.bin',
@@ -234,7 +355,62 @@ describe('local readiness', () => {
         id: 'files.minified:public/app.min.js',
         severity: 'warning',
       }),
+      expect.objectContaining({
+        id: 'files.minified:public/vendor/jquery/jquery.min.js',
+        severity: 'info',
+      }),
     ]))
+  })
+
+  test('does not score-gate generated or vendored minified assets', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({
+      scripts: {
+        lint: 'eslint .',
+        test: 'jest',
+      },
+    }))
+    writeRepoFile(root, 'django/contrib/admin/static/admin/css/vendor/select2/select2.min.css', '.select2{display:block}')
+    writeRepoFile(root, 'django/contrib/admin/static/admin/js/vendor/jquery/jquery.min.js', 'window.jQuery={};')
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+
+    expect(report.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'files.minified:django/contrib/admin/static/admin/css/vendor/select2/select2.min.css',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.minified:django/contrib/admin/static/admin/js/vendor/jquery/jquery.min.js',
+        severity: 'info',
+      }),
+    ]))
+  })
+
+  test('treats thirdparty trees as vendored generated paths', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run cargo test.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'Cargo.toml', '[package]\nname = "demo"\nversion = "0.1.0"\n')
+    writeRepoFile(root, 'src/main.rs', 'fn main() {}\n')
+    writeRepoFile(
+      root,
+      'internal/core/thirdparty/tantivy/tantivy-binding/src/analyzer/data/jieba/dict.txt.big',
+      'word\n'.repeat(260_000),
+    )
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const byId = new Map(report.findings.map(finding => [finding.id, finding]))
+
+    expect(report.files.find(file => file.path.includes('/thirdparty/'))).toMatchObject({
+      generated: true,
+      source: false,
+    })
+    expect(byId.has('files.large:internal/core/thirdparty/tantivy/tantivy-binding/src/analyzer/data/jieba/dict.txt.big')).toBe(false)
   })
 
   test('downgrades obvious scientific example data to informational context friction', () => {
@@ -245,7 +421,14 @@ describe('local readiness', () => {
     writeRepoFile(root, 'pyproject.toml', '[project]\nname = "demo"\n')
     writeRepoFile(root, 'tests/test_demo.py', 'def test_demo():\n    assert True\n')
     writeRepoFile(root, 'examples/daal4py/data/batch/svd.csv', Buffer.alloc(1_100_000, 1))
+    writeRepoFile(root, 'examples/cpu/inference/python/models/bert_large/inference/cpu/configure.json', '{"nodes":[' + '"x",'.repeat(260_000) + '"y"]}')
+    writeRepoFile(root, 'examples/cpu/usecase/report.html', '<html>' + 'x'.repeat(1_100_000) + '</html>')
+    writeRepoFile(root, 'notebooks/demo.ipynb', '{"cells":[' + '{} ,'.repeat(280_000) + '{}]}')
     writeRepoFile(root, 'data/qr.csv', Buffer.alloc(1_100_000, 1))
+    writeRepoFile(root, 'cmd/promtool/testdata/rules_large.yml', 'groups:\n' + '  - name: example\n    rules:\n      - record: job:http_inprogress_requests:sum\n        expr: vector(1)\n'.repeat(10_000))
+    writeRepoFile(root, 'src/tests/functional/plugin/shared/src/single_op/paged_attention_token_type_test_data.cpp', 'int data[] = {' + '1,'.repeat(600_000) + '};')
+    writeRepoFile(root, 'src/unit_tests/generated_fixture_test_data.cpp', 'int data[] = {' + '2,'.repeat(600_000) + '};')
+    writeRepoFile(root, 'src/tests/test_utils/functional_test_utils/layer_tests_summary/github/cache/CPU/test_cache_OP.lst', 'op\n'.repeat(400_000))
     // A generic large *text* file outside any data-fixture path stays a warning.
     writeRepoFile(root, 'assets/blob.csv', `${'1,2,3,4,5\n'.repeat(110_000)}`)
 
@@ -258,7 +441,35 @@ describe('local readiness', () => {
         title: 'Large checked-in example or fixture data can create agent context friction',
       }),
       expect.objectContaining({
+        id: 'files.large:examples/cpu/inference/python/models/bert_large/inference/cpu/configure.json',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.large:examples/cpu/usecase/report.html',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.large:notebooks/demo.ipynb',
+        severity: 'info',
+      }),
+      expect.objectContaining({
         id: 'files.large:data/qr.csv',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.large:cmd/promtool/testdata/rules_large.yml',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.large:src/tests/functional/plugin/shared/src/single_op/paged_attention_token_type_test_data.cpp',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.large:src/unit_tests/generated_fixture_test_data.cpp',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.large:src/tests/test_utils/functional_test_utils/layer_tests_summary/github/cache/CPU/test_cache_OP.lst',
         severity: 'info',
       }),
       expect.objectContaining({
@@ -267,6 +478,92 @@ describe('local readiness', () => {
         title: 'Large checked-in file can create agent context friction',
       }),
     ]))
+  })
+
+  test('downgrades large checked-in example and test data artifacts to info', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run tests before committing.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'pyproject.toml', '[project]\nname = "demo"\n')
+    writeRepoFile(root, 'tests/test_demo.py', 'def test_demo():\n    assert True\n')
+    writeRepoFile(root, 'examples/cpu/inference/configure.json', '[]'.repeat(600_000))
+    writeRepoFile(root, 'examples/cpu/report.html', '<div>result</div>'.repeat(80_000))
+    writeRepoFile(root, 'examples/cpu/notebook.ipynb', JSON.stringify({ cells: ['x'.repeat(1_100_000)] }))
+    writeRepoFile(root, 'scripts/ty_benchmark/snapshots/homeassistant_Pyright.txt', 'error\n'.repeat(300_000))
+    writeRepoFile(root, 'cmd/promtool/testdata/rules_large.yml', `groups:\n${'- name: fixture\n  rules: []\n'.repeat(50_000)}`)
+    writeRepoFile(root, 'test/extensions/compression/gzip/compressor_corpus/clusterfuzz-testcase-minimized-compressor_fuzz_test-5407695477932032', 'payload\n'.repeat(180_000))
+    writeRepoFile(root, 'tests/cache/CPU/test_cache_OP.lst', 'op\n'.repeat(400_000))
+    writeRepoFile(root, 'tests/single_op/paged_attention_token_type_test_data.cpp', `int data[] = {${'1,'.repeat(600_000)}};`)
+    writeRepoFile(root, 'scripts/ty_benchmark/snapshots/django_Mypy.txt', 'diagnostic\n'.repeat(130_000))
+    writeRepoFile(root, 'test/extensions/compression/gzip/compressor_corpus/testcase-6170333611884544', 'x'.repeat(1_100_000))
+    writeRepoFile(root, 'tests/__snapshots__/component.snap', 'snapshot\n'.repeat(140_000))
+    writeRepoFile(root, 'tests/analyzer/graph/react-dom-production/resolved-effects.snapshot', 'snapshot\n'.repeat(140_000))
+    writeRepoFile(root, 'tests/benches/app-page-turbo.runtime.prod.js', 'export const bench = 1;\n'.repeat(80_000))
+    writeRepoFile(root, 'tests/benches/suite.ts', 'export const handWrittenBenchmark = true;\n'.repeat(80_000))
+    writeRepoFile(root, 'tests/sqllogic/known_failures.txt', 'query intentionally fails\n'.repeat(80_000))
+    writeRepoFile(root, 'assets/component.snap', 'snapshot\n'.repeat(140_000))
+    writeRepoFile(root, 'src/generated-data.cpp', `int data[] = {${'1,'.repeat(600_000)}};`)
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const byId = new Map(report.findings.map(finding => [finding.id, finding]))
+
+    for (const fixturePath of [
+      'examples/cpu/inference/configure.json',
+      'examples/cpu/report.html',
+      'examples/cpu/notebook.ipynb',
+      'scripts/ty_benchmark/snapshots/django_Mypy.txt',
+      'cmd/promtool/testdata/rules_large.yml',
+      'test/extensions/compression/gzip/compressor_corpus/clusterfuzz-testcase-minimized-compressor_fuzz_test-5407695477932032',
+      'tests/cache/CPU/test_cache_OP.lst',
+      'tests/single_op/paged_attention_token_type_test_data.cpp',
+      'scripts/ty_benchmark/snapshots/homeassistant_Pyright.txt',
+      'test/extensions/compression/gzip/compressor_corpus/testcase-6170333611884544',
+      'tests/__snapshots__/component.snap',
+      'tests/analyzer/graph/react-dom-production/resolved-effects.snapshot',
+      'tests/benches/app-page-turbo.runtime.prod.js',
+      'tests/sqllogic/known_failures.txt',
+    ]) {
+      expect(byId.get(`files.large:${fixturePath}`)).toMatchObject({
+        severity: 'info',
+        title: 'Large checked-in example or fixture data can create agent context friction',
+      })
+    }
+    expect(byId.get('files.large:src/generated-data.cpp')).toMatchObject({
+      severity: 'warning',
+      title: 'Large checked-in file can create agent context friction',
+    })
+    expect(byId.get('files.large:assets/component.snap')).toMatchObject({
+      severity: 'warning',
+      title: 'Large checked-in file can create agent context friction',
+    })
+    expect(byId.get('files.large:tests/benches/suite.ts')).toMatchObject({
+      severity: 'warning',
+      title: 'Large checked-in file can create agent context friction',
+    })
+  })
+
+  test('downgrades large text benchmark snapshots to info', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run tests before committing.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'pyproject.toml', '[project]\nname = "demo"\n')
+    writeRepoFile(root, 'tests/test_demo.py', 'def test_demo():\n    assert True\n')
+    writeRepoFile(root, 'scripts/ty_benchmark/snapshots/homeassistant_Pyright.txt', 'diagnostic\n'.repeat(130_000))
+    writeRepoFile(root, 'src/notes.txt', 'note\n'.repeat(260_000))
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const byId = new Map(report.findings.map(finding => [finding.id, finding]))
+
+    expect(byId.get('files.large:scripts/ty_benchmark/snapshots/homeassistant_Pyright.txt')).toMatchObject({
+      severity: 'info',
+      title: 'Large checked-in example or fixture data can create agent context friction',
+    })
+    expect(byId.get('files.large:src/notes.txt')).toMatchObject({
+      severity: 'warning',
+      title: 'Large checked-in file can create agent context friction',
+    })
   })
 
   test('surfaces a large binary asset at info but a large text file at warning', () => {
@@ -292,6 +589,43 @@ describe('local readiness', () => {
     })
   })
 
+  test('falls back cleanly when binary sampling rejects valid UTF-8 box-drawing text', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+    const clickHouseReferencePrefix = Buffer.from([
+      32, 32, 32, 226, 148, 140, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148,
+      128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 120, 226, 148, 128, 226, 148,
+      144, 10, 49, 46, 32, 226, 148, 130, 32, 49, 50, 51, 52, 53, 54, 55, 56, 57, 32, 226, 148,
+      130, 32, 45, 45, 32, 49, 50, 51, 46, 52, 54, 32, 109, 105, 108, 108, 105, 111, 110, 10, 32,
+      32, 32, 226, 148, 148, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148,
+      128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148, 128, 226, 148, 128,
+      226, 148, 152, 10,
+    ])
+    writeRepoFile(root, 'tests/queries/0_stateless/03156_nullable_number_tips.reference', Buffer.concat(Array(12).fill(clickHouseReferencePrefix)))
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+
+    try {
+      const report = scanLocalReadiness(root, {
+        now: fixedNow,
+        config: {
+          largeFileWarningBytes: 1_000,
+          largeFileErrorBytes: 100_000,
+        },
+      })
+
+      expect(warn).not.toHaveBeenCalled()
+      expect(report.files.find(file => file.path.endsWith('03156_nullable_number_tips.reference'))).toMatchObject({
+        binary: false,
+        test: true,
+      })
+      expect(listFindingIds(report)).toContain('files.large:tests/queries/0_stateless/03156_nullable_number_tips.reference')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   test('does not flag large lockfiles across ecosystems as large files', () => {
     root = createTempRepo()
     writeRepoFile(root, 'README.md', '# Demo\n')
@@ -311,6 +645,62 @@ describe('local readiness', () => {
     const largeIds = listFindingIds(report).filter(id => id.startsWith('files.large'))
 
     expect(largeIds).toEqual(['files.large:assets/blob.bin'])
+  })
+
+  test('does not flag generated baselines or vendored dependency trees as large files', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+    writeRepoFile(root, 'tests/baselines/reference/hugeDeclarationOutputGetsTruncatedWithError.types', 'type X = string;\n'.repeat(90_000))
+    writeRepoFile(root, 'tests/baselines/reference/completionsCommentsClassMembers.baseline', 'baseline\n'.repeat(150_000))
+    writeRepoFile(root, 'tests/cases/fourslash/reallyLargeFile.ts', 'verify.completions();\n'.repeat(90_000))
+    writeRepoFile(root, 'test/fixtures/snapshot/typescript.js', 'var ts = {};\n'.repeat(100_000))
+    writeRepoFile(root, 'deps/v8/test/cctest/test-api.cc', 'int value = 1;\n'.repeat(90_000))
+    writeRepoFile(root, 'third_party/abseil-cpp/symbols_x64_dbg.def', 'symbol\n'.repeat(180_000))
+    writeRepoFile(root, 'src/lib/dom.generated.d.ts', 'interface Document {}\n'.repeat(80_000))
+    writeRepoFile(root, 'src/loc/lcl/fra/diagnosticMessages.generated.json.lcl', '{"message":"x"}\n'.repeat(90_000))
+    writeRepoFile(root, 'src/large-first-party.ts', 'export const value = 1;\n'.repeat(70_000))
+    writeRepoFile(root, 'src/generated-data.cpp', `int data[] = {${'1,'.repeat(600_000)}};`)
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const largeIds = listFindingIds(report).filter(id => id.startsWith('files.large'))
+
+    expect(largeIds).toEqual([
+      'files.large:src/generated-data.cpp',
+      'files.large:src/large-first-party.ts',
+    ])
+  })
+
+  test('downgrades minified files in generated fixture trees', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+    writeRepoFile(root, 'test/fixtures/source-map/throw-class-method.min.js', 'var a=1;')
+    writeRepoFile(root, 'tests/fixtures/wpt/compression/third_party/pako/pako_inflate.min.js', 'var b=1;')
+    writeRepoFile(root, 'public/app.min.js', 'var c=1;')
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const minifiedFindings = report.findings.filter(finding => finding.id.startsWith('files.minified'))
+
+    expect(minifiedFindings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'files.minified:public/app.min.js',
+        severity: 'warning',
+      }),
+      expect.objectContaining({
+        id: 'files.minified:test/fixtures/source-map/throw-class-method.min.js',
+        severity: 'info',
+      }),
+      expect.objectContaining({
+        id: 'files.minified:tests/fixtures/wpt/compression/third_party/pako/pako_inflate.min.js',
+        severity: 'info',
+      }),
+    ]))
+    expect(minifiedFindings).toHaveLength(3)
   })
 
   test('loads config to ignore intentional paths and allow minified assets', () => {
@@ -370,6 +760,105 @@ describe('local readiness', () => {
     expect(paths).toContain('top.log')
   })
 
+  test('keeps readiness metadata visible when broad dotfile ignores exist', () => {
+    root = createTempRepo()
+    runGit(root, ['init', '--initial-branch=main'])
+    runGit(root, ['config', 'user.email', 'agentready@example.com'])
+    runGit(root, ['config', 'user.name', 'AgentReady Test'])
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, '.gitignore', '.*\n')
+    writeRepoFile(root, '.github/workflows/4.x.yml', [
+      'name: 4.x',
+      'on: [push]',
+      'jobs:',
+      '  test:',
+      '    steps:',
+      '      - run: make test',
+      '',
+    ].join('\n'))
+    writeRepoFile(root, '.github/instructions/react.instructions.md', 'Use npm test for React changes.\n')
+    writeRepoFile(root, '.cursor/rules/frontend.mdc', 'Run frontend checks.\n')
+    writeRepoFile(root, '.claude/skills/review/SKILL.md', 'Review changed tests.\n')
+    writeRepoFile(root, 'Makefile', 'test:\n\ttrue\n')
+    writeRepoFile(root, 'src/app.c', 'int main(void) { return 0; }\n')
+    runGit(root, ['add', '.'])
+    runGit(root, [
+      'add',
+      '--force',
+      '.github/workflows/4.x.yml',
+      '.github/instructions/react.instructions.md',
+      '.cursor/rules/frontend.mdc',
+      '.claude/skills/review/SKILL.md',
+    ])
+    runGit(root, ['commit', '-m', 'base'])
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const paths = report.files.map(file => file.path)
+    const instructions = report.instructions.map(surface => surface.path)
+
+    expect(paths).toContain('.github/workflows/4.x.yml')
+    expect(instructions).toEqual(expect.arrayContaining([
+      'AGENTS.md',
+      '.github/instructions/react.instructions.md',
+      '.cursor/rules/frontend.mdc',
+      '.claude/skills/review/SKILL.md',
+    ]))
+    expect(report.ci.workflowFiles).toEqual(['.github/workflows/4.x.yml'])
+    expect(report.ci.hasTest).toBe(true)
+    expect(listFindingIds(report)).not.toContain('ci.workflow.missing')
+  })
+
+  test('does not invoke fsmonitor hooks while listing tracked readiness metadata', () => {
+    root = createTempRepo()
+    runGit(root, ['init', '--initial-branch=main'])
+    runGit(root, ['config', 'user.email', 'agentready@example.com'])
+    runGit(root, ['config', 'user.name', 'AgentReady Test'])
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, '.gitignore', '.*\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\non: [push]\njobs:\n  test:\n    steps:\n      - run: npm test\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+    writeRepoFile(root, 'src/app.ts', 'export const value = 1\n')
+    runGit(root, ['add', '.'])
+    runGit(root, ['add', '--force', '.github/workflows/ci.yml'])
+    runGit(root, ['commit', '-m', 'base'])
+
+    const markerPath = path.join(root, 'fsmonitor-ran')
+    const hookPath = path.join(root, 'fsmonitor-hook.sh')
+    writeFileSync(hookPath, `#!/bin/sh\ntouch "${markerPath}"\nexit 0\n`)
+    chmodSync(hookPath, 0o755)
+    runGit(root, ['config', 'core.fsmonitor', hookPath])
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+
+    expect(report.ci.workflowFiles).toEqual(['.github/workflows/ci.yml'])
+    expect(report.files.map(file => file.path)).not.toContain('fsmonitor-ran')
+  })
+
+  test('keeps ignored untracked readiness metadata hidden', () => {
+    root = createTempRepo()
+    runGit(root, ['init', '--initial-branch=main'])
+    runGit(root, ['config', 'user.email', 'agentready@example.com'])
+    runGit(root, ['config', 'user.name', 'AgentReady Test'])
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, '.gitignore', '.github/\ntmp/\n')
+    writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
+    writeRepoFile(root, 'src/app.ts', 'export const value = 1\n')
+    runGit(root, ['add', '.'])
+    runGit(root, ['commit', '-m', 'base'])
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'tmp/AGENTS.md', 'Scratch instructions.\n')
+
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const paths = report.files.map(file => file.path)
+
+    expect(paths).not.toContain('.github/workflows/ci.yml')
+    expect(paths).not.toContain('tmp/AGENTS.md')
+    expect(report.ci.workflowFiles).toEqual([])
+    expect(report.instructions.map(surface => surface.path)).toEqual([])
+  })
+
   test('lets a nested .gitignore negation re-include a file the root ignores', () => {
     root = createTempRepo()
     writeRepoFile(root, 'README.md', '# Demo\n')
@@ -412,16 +901,39 @@ describe('local readiness', () => {
     expect(paths).toContain('src/app.ts')
   })
 
-  test('does not inventory symlinks, including those pointing outside the repo', () => {
+  test('does not follow symlinked gitignore files outside the repo', () => {
     root = createTempRepo()
     const outside = createTempRepo()
-    writeRepoFile(outside, 'secret.bin', Buffer.alloc(2_000_000, 1))
+    writeRepoFile(outside, '.gitignore', 'src/\n')
     writeRepoFile(root, 'README.md', '# Demo\n')
     writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
     writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
     writeRepoFile(root, 'package.json', JSON.stringify({ scripts: { test: 'jest' } }))
     writeRepoFile(root, 'src/app.ts', 'export const a = 1\n')
+    symlinkSync(path.join(outside, '.gitignore'), path.join(root, '.gitignore'))
+
+    try {
+      const report = scanLocalReadiness(root, { now: fixedNow })
+      const paths = report.files.map(file => file.path)
+
+      expect(paths).toContain('src/app.ts')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  test('inventories documentation symlinks without exposing other symlink targets', () => {
+    root = createTempRepo()
+    const outside = createTempRepo()
+    writeRepoFile(outside, 'secret.bin', Buffer.alloc(2_000_000, 1))
+    writeRepoFile(outside, 'package.json', JSON.stringify({ scripts: { test: 'outside-test' } }))
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: CI\n')
+    writeRepoFile(root, 'src/app.ts', 'export const a = 1\n')
+    symlinkSync('README.md', path.join(root, 'linked-readme.md'))
     symlinkSync(path.join(outside, 'secret.bin'), path.join(root, 'external.bin'))
+    symlinkSync(path.join(outside, 'package.json'), path.join(root, 'package.json'))
     symlinkSync(path.join(root, 'src'), path.join(root, 'src-link'))
 
     try {
@@ -429,10 +941,15 @@ describe('local readiness', () => {
       const paths = report.files.map(file => file.path)
 
       expect(paths).toContain('src/app.ts')
+      expect(paths).toContain('linked-readme.md')
+      expect(paths).not.toContain('package.json')
       expect(paths).not.toContain('external.bin')
-      expect(paths.some(p => p.startsWith('src-link'))).toBe(false)
-      // The external 2 MB target must not leak in as a large-file finding.
+      expect(paths).not.toContain('src-link')
+      expect(paths).not.toContain('src-link/app.ts')
+      // The external targets must not be followed, sampled, or exposed to
+      // downstream manifest readers.
       expect(listFindingIds(report)).not.toContain('files.large:external.bin')
+      expect(report.commands.ecosystems).not.toContain('node')
     } finally {
       rmSync(outside, { recursive: true, force: true })
     }
@@ -546,6 +1063,15 @@ describe('local readiness', () => {
     expect(validateReadinessDiffReportContract(report)).toEqual({ valid: true, errors: [] })
     expect(formatDiffMarkdown(report)).toContain('## AgentReady PR readiness')
     expect(formatDiffMarkdown(report)).toContain('New regressions')
+
+    // ADR 0005: newFindings/regressions come from headReport.findings and
+    // resolvedFindings from baseReport.findings, so each embedded report's own
+    // `reportContract.experimentalFindingFields` is the advertise-or-strip
+    // marker for confidence/scope on these arrays — no built-in rule sets a
+    // non-default value yet, so both stay omitted.
+    expect(report.headReport.reportContract.experimentalFindingFields).toBeUndefined()
+    expect(report.baseReport.reportContract.experimentalFindingFields).toBeUndefined()
+    expect(report.regressions.every(finding => finding.confidence === undefined && finding.scope === undefined)).toBe(true)
   })
 
   test('diff treats a same-path severity escalation (binary→text large file) as a regression', () => {
@@ -867,5 +1393,39 @@ describe('CI orchestrator and architecture-doc recognition', () => {
 
     expect(finding).toBeDefined()
     expect(finding?.severity).toBe('info')
+  })
+})
+
+describe('instructions.portable-entrypoint.missing', () => {
+  let root: string
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true })
+  })
+
+  test('does not fire when AGENTS.md is present', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'AGENTS.md', 'Run npm test.\n')
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    expect(listFindingIds(report)).not.toContain('instructions.portable-entrypoint.missing')
+  })
+
+  test('fires at info when only a vendor-specific instruction surface exists', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    writeRepoFile(root, 'CLAUDE.md', 'Run npm test.\n')
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const finding = report.findings.find(f => f.id === 'instructions.portable-entrypoint.missing')
+    expect(finding).toMatchObject({ severity: 'info' })
+    expect(finding?.recommendation).toContain('AGENTS.md')
+  })
+
+  test('does not fire when no instruction surface exists at all (instructions.missing covers that case)', () => {
+    root = createTempRepo()
+    writeRepoFile(root, 'README.md', '# Demo\n')
+    const report = scanLocalReadiness(root, { now: fixedNow })
+    const ids = listFindingIds(report)
+    expect(ids).toContain('instructions.missing')
+    expect(ids).not.toContain('instructions.portable-entrypoint.missing')
   })
 })

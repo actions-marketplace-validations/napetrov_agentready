@@ -2,6 +2,8 @@ import {
   formatDiffMarkdown,
   formatScanMarkdown,
   formatScanSarif,
+  formatScanSummary,
+  NOT_VERIFIED_EXTERNAL_CONTROLS,
 } from '../lib/repo-readiness/local-readiness'
 import type {
   LocalReadinessReport,
@@ -38,6 +40,48 @@ const scanReport = (findings: ReadinessFinding[]): LocalReadinessReport =>
     findings,
   }) as unknown as LocalReadinessReport
 
+const withProfile = (
+  report: LocalReadinessReport,
+  overrides: Partial<LocalReadinessReport['readinessProfile']> = {},
+): LocalReadinessReport => ({
+  ...report,
+  readinessProfile: {
+    readiness: [],
+    risk: { verdict: 'high', confidence: 'high', evidenceRefs: ['safety.capability.high-risk:.mcp.json'], explanation: '1 high-blast-radius capability surface' },
+    coverage: { applicableSurfaces: 4, assessedSurfaces: 3, ratio: 0.75, gaps: [] },
+    observability: { verifiedLocally: [], notFound: [], notObservableLocally: [] },
+    calibrationConfidence: 'low',
+    ...overrides,
+  },
+})
+
+describe('readiness profile in reporters', () => {
+  it('leads the console summary with the profile and labels the score secondary', () => {
+    const summary = formatScanSummary(withProfile(scanReport([])))
+    expect(summary).toContain('Repository Agent Readiness Profile')
+    expect(summary).toContain('Capability risk: high (1 high-blast-radius capability surface)')
+    expect(summary).toContain('Scanner coverage: 75% (3/4 applicable surfaces assessed)')
+    expect(summary).toContain('Calibration confidence: low')
+    expect(summary).toMatch(/AgentReady score: 60\/100 \(secondary/)
+    // The profile heading appears before the score line.
+    expect(summary.indexOf('Repository Agent Readiness Profile')).toBeLessThan(summary.indexOf('AgentReady score:'))
+  })
+
+  it('leads the markdown report with the profile section and a secondary score', () => {
+    const md = formatScanMarkdown(withProfile(scanReport([])))
+    expect(md).toContain('### Repository Agent Readiness Profile')
+    expect(md).toContain('- **Capability risk:** high — 1 high-blast-radius capability surface')
+    expect(md).toContain('- **Scanner coverage:** 75% (3/4 applicable surfaces assessed)')
+    expect(md).toContain('Score (secondary, experimental): **60/100**')
+    expect(md.indexOf('### Repository Agent Readiness Profile')).toBeLessThan(md.indexOf('Score (secondary'))
+  })
+
+  it('omits the profile block when the report has no readinessProfile', () => {
+    expect(formatScanSummary(scanReport([]))).not.toContain('Repository Agent Readiness Profile')
+    expect(formatScanMarkdown(scanReport([]))).not.toContain('### Repository Agent Readiness Profile')
+  })
+})
+
 describe('formatScanSarif', () => {
   it('maps every severity to a SARIF level and emits locations only for path-bearing findings', () => {
     const sarif = formatScanSarif(
@@ -67,6 +111,62 @@ describe('formatScanMarkdown', () => {
 
     const md = formatScanMarkdown(scanReport([finding({ severity: 'error', path: 'src/a.ts', recommendation: 'Fix it.' })]))
     expect(md).toContain('**ERROR**: Title (src/a.ts). Fix it.')
+  })
+
+  it('renders the autonomy envelope when present', () => {
+    const report = scanReport([finding({ id: 'docs.readme.missing', severity: 'error' })])
+    const withEnvelope: LocalReadinessReport = {
+      ...report,
+      autonomyEnvelope: [
+        { stage: 'orient', status: 'blocked', findingIds: ['docs.readme.missing'] },
+        { stage: 'bootstrap', status: 'ready', findingIds: [] },
+      ],
+    }
+    const md = formatScanMarkdown(withEnvelope)
+    expect(md).toContain('### Autonomy envelope')
+    expect(md).toContain('- orient: ⛔ blocked — docs.readme.missing')
+    expect(md).toContain('- bootstrap: ✅ ready')
+  })
+
+  it('omits the autonomy envelope section when the field is absent', () => {
+    const md = formatScanMarkdown(scanReport([]))
+    expect(md).not.toContain('### Autonomy envelope')
+  })
+
+  it('always lists the fixed set of controls a local scan cannot verify', () => {
+    const md = formatScanMarkdown(scanReport([]))
+    expect(md).toContain('### Not verified from repository contents')
+    for (const control of NOT_VERIFIED_EXTERNAL_CONTROLS) {
+      expect(md).toContain(`- ${control}`)
+    }
+  })
+})
+
+describe('formatScanSummary', () => {
+  it('always includes the fixed set of controls a local scan cannot verify', () => {
+    const summary = formatScanSummary(scanReport([]))
+    for (const control of NOT_VERIFIED_EXTERNAL_CONTROLS) {
+      expect(summary).toContain(control)
+    }
+  })
+
+  it('lists only the not-ready/blocked stages, and omits the line when every stage is ready', () => {
+    const report = scanReport([])
+    const blocked: LocalReadinessReport = {
+      ...report,
+      autonomyEnvelope: [
+        { stage: 'orient', status: 'blocked', findingIds: ['docs.readme.missing'] },
+        { stage: 'bootstrap', status: 'not_yet_ready', findingIds: ['commands.reference.npm-script:x'] },
+        { stage: 'edit', status: 'ready', findingIds: [] },
+      ],
+    }
+    expect(formatScanSummary(blocked)).toContain('Autonomy: orient (blocked), bootstrap (not yet ready)')
+
+    const allReady: LocalReadinessReport = {
+      ...report,
+      autonomyEnvelope: [{ stage: 'orient', status: 'ready', findingIds: [] }],
+    }
+    expect(formatScanSummary(allReady)).not.toContain('Autonomy:')
   })
 })
 

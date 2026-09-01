@@ -1,6 +1,6 @@
 {
   "name": "@napetrov/agentready",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Local-first repository readiness scanner for AI coding agents.",
   "license": "MIT",
   "repository": {
@@ -48,7 +48,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -60,6 +60,7 @@
     "agentready:schemas": "tsx bin/agentready-emit-schemas.ts",
     "agentready:action-smoke": "tsx bin/agentready-action-smoke.ts",
     "agentready:eval": "tsx bin/agentready-eval.ts",
+    "agentready:benchmark": "tsx bin/agentready-evaluate.ts",
     "agentready:dogfood": "tsx bin/agentready-dogfood.ts",
     "agentready:realworld-cron": "tsx bin/agentready-realworld-cron.ts",
     "lint": "eslint . --ext .ts",
@@ -72,23 +73,25 @@
   },
   "dependencies": {
     "commander": "^12.1.0",
-    "cosmiconfig": "^9.0.1",
+    "cosmiconfig": "^9.0.2",
     "fast-glob": "^3.3.3",
-    "ignore": "^6.0.2",
-    "isbinaryfile": "^4.0.10",
+    "ignore": "^7.0.5",
+    "isbinaryfile": "^6.0.0",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/jest": "^29.5.8",
-    "@types/node": "^20.8.0",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "@vercel/ncc": "^0.38.4",
-    "eslint": "^8.57.0",
+    "@types/node": "^26.1.1",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.61.0",
+    "@vercel/ncc": "^0.44.1",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
-    "tsx": "^4.22.3",
+    "tsx": "^4.23.0",
     "typescript": "^5.2.0"
   }
 }

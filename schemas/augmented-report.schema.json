@@ -1,5 +1,5 @@
 {
-  "$id": "https://napetrov.github.io/agentready/schemas/v0.1.0/augmented-report.schema.json",
+  "$id": "https://napetrov.github.io/agentready/schemas/v0.3.0/augmented-report.schema.json",
   "title": "AgentReady augmented report",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
@@ -134,6 +134,12 @@
                 "type": "string"
               }
             },
+            "makeTargets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "hasBuild": {
               "type": "boolean"
             },
@@ -150,11 +156,129 @@
           "required": [
             "ecosystems",
             "scripts",
+            "makeTargets",
             "hasBuild",
             "hasTest",
             "hasLint",
             "hasTypeCheck"
           ],
+          "additionalProperties": false
+        },
+        "commandReferences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "npm-script",
+                  "make-target",
+                  "package-manager-mismatch",
+                  "shortcut-script"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "reference",
+              "kind",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "instructionContradictions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "package-manager"
+                ]
+              },
+              "paths": {
+                "type": "array",
+                "items": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "paths",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "governance": {
+          "type": "object",
+          "properties": {
+            "codeownersPath": {
+              "type": "string"
+            },
+            "pullRequestTemplatePath": {
+              "type": "string"
+            },
+            "uncoveredActiveDirectories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "protectedPathCoverage": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "covered": {
+                    "type": "boolean"
+                  },
+                  "owners": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "singleOwnerRisk": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "pattern",
+                  "covered",
+                  "owners",
+                  "singleOwnerRisk"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
           "additionalProperties": false
         },
         "ci": {
@@ -377,13 +501,22 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "riskTier": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
               }
             },
             "required": [
               "kind",
               "path",
               "tool",
-              "notes"
+              "notes",
+              "riskTier"
             ],
             "additionalProperties": false
           }
@@ -428,6 +561,2232 @@
             "additionalProperties": false
           }
         },
+        "hookExecutionRisks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "event": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "event",
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "repositoryEvidence": {
+          "type": "object",
+          "properties": {
+            "roots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "repository-root"
+                  },
+                  "rootKind": {
+                    "type": "string",
+                    "enum": [
+                      "app",
+                      "library",
+                      "package",
+                      "service",
+                      "tool",
+                      "docs",
+                      "test",
+                      "unknown"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "languages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "packageManager": {
+                    "type": "string",
+                    "enum": [
+                      "npm",
+                      "pnpm",
+                      "yarn",
+                      "bun"
+                    ]
+                  },
+                  "manifests": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "sourceFiles": {
+                    "type": "number"
+                  },
+                  "testFiles": {
+                    "type": "number"
+                  },
+                  "documentationFiles": {
+                    "type": "number"
+                  },
+                  "generatedFiles": {
+                    "type": "number"
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "detector": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "manifest",
+                            "workflow",
+                            "config",
+                            "inference"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "detector",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "rootKind",
+                  "path",
+                  "paths",
+                  "languages",
+                  "manifests",
+                  "sourceFiles",
+                  "testFiles",
+                  "documentationFiles",
+                  "generatedFiles",
+                  "confidence",
+                  "sources"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "boundaries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "architecture-boundary"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "entrypoint",
+                      "public-api",
+                      "internal-module",
+                      "adapter",
+                      "domain",
+                      "infrastructure",
+                      "test-support",
+                      "generated",
+                      "unknown"
+                    ]
+                  },
+                  "signals": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "detector": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "manifest",
+                            "workflow",
+                            "config",
+                            "inference"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "detector",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "path",
+                  "paths",
+                  "role",
+                  "signals",
+                  "confidence",
+                  "sources"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "documentSurfaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "document-surface"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "roleClaims": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "document-role"
+                        },
+                        "value": {
+                          "type": "string",
+                          "enum": [
+                            "entrypoint",
+                            "development",
+                            "architecture",
+                            "decision-record",
+                            "contribution",
+                            "environment",
+                            "agent-instruction",
+                            "operation",
+                            "api"
+                          ]
+                        },
+                        "confidence": {
+                          "type": "string",
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high"
+                          ]
+                        },
+                        "signals": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "detector": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "file",
+                                  "manifest",
+                                  "workflow",
+                                  "config",
+                                  "inference"
+                                ]
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "note": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "detector",
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "value",
+                        "confidence",
+                        "signals",
+                        "sources"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "headings": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "linkedPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "commandBlocks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "language": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "index",
+                        "text",
+                        "truncated"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "detector": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "manifest",
+                            "workflow",
+                            "config",
+                            "inference"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "detector",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "path",
+                  "paths",
+                  "roleClaims",
+                  "headings",
+                  "linkedPaths",
+                  "commandBlocks",
+                  "sources"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "verificationSurfaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "verification-surface"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "rootIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "commandKind": {
+                    "type": "string",
+                    "enum": [
+                      "install",
+                      "lint",
+                      "typecheck",
+                      "test",
+                      "build"
+                    ]
+                  },
+                  "commandText": {
+                    "type": "string"
+                  },
+                  "workflowJobId": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "detector": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "manifest",
+                            "workflow",
+                            "config",
+                            "inference"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "detector",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "paths",
+                  "rootIds",
+                  "commandKind",
+                  "confidence",
+                  "sources"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "topology": {
+              "type": "object",
+              "properties": {
+                "dependencyHints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "dependency-hint"
+                      },
+                      "paths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "sources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "detector": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "file",
+                                "manifest",
+                                "workflow",
+                                "config",
+                                "inference"
+                              ]
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "detector",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "fromRootId": {
+                        "type": "string"
+                      },
+                      "toRootId": {
+                        "type": "string"
+                      },
+                      "relationship": {
+                        "type": "string",
+                        "enum": [
+                          "workspace",
+                          "manifest",
+                          "import-path",
+                          "unknown"
+                        ]
+                      },
+                      "confidence": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "paths",
+                      "sources",
+                      "fromRootId",
+                      "relationship",
+                      "confidence"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "testProximityHints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "test-proximity-hint"
+                      },
+                      "paths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "sources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "detector": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "file",
+                                "manifest",
+                                "workflow",
+                                "config",
+                                "inference"
+                              ]
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "detector",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "rootId": {
+                        "type": "string"
+                      },
+                      "nearbyTestPaths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "confidence": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "paths",
+                      "sources",
+                      "rootId",
+                      "nearbyTestPaths",
+                      "confidence"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "documentationProximityHints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "documentation-proximity-hint"
+                      },
+                      "paths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "sources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "detector": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "file",
+                                "manifest",
+                                "workflow",
+                                "config",
+                                "inference"
+                              ]
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "detector",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "rootId": {
+                        "type": "string"
+                      },
+                      "documentSurfaceIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "roleClaims": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "entrypoint",
+                            "development",
+                            "architecture",
+                            "decision-record",
+                            "contribution",
+                            "environment",
+                            "agent-instruction",
+                            "operation",
+                            "api"
+                          ]
+                        }
+                      },
+                      "confidence": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "paths",
+                      "sources",
+                      "rootId",
+                      "documentSurfaceIds",
+                      "roleClaims",
+                      "confidence"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "generatedPressure": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "generated-pressure"
+                      },
+                      "paths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "sources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "detector": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "file",
+                                "manifest",
+                                "workflow",
+                                "config",
+                                "inference"
+                              ]
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "detector",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "rootId": {
+                        "type": "string"
+                      },
+                      "generatedFileRatio": {
+                        "type": "number"
+                      },
+                      "generatedBytesRatio": {
+                        "type": "number"
+                      },
+                      "confidence": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "paths",
+                      "sources",
+                      "rootId",
+                      "generatedFileRatio",
+                      "generatedBytesRatio",
+                      "confidence"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "metrics": {
+                  "type": "object",
+                  "properties": {
+                    "rootCount": {
+                      "type": "number"
+                    },
+                    "languageCount": {
+                      "type": "number"
+                    },
+                    "sourceToNearbyTestRatio": {
+                      "type": "number"
+                    },
+                    "docsToSourceProximityRatio": {
+                      "type": "number"
+                    },
+                    "generatedFileRatio": {
+                      "type": "number"
+                    },
+                    "largestRootShare": {
+                      "type": "number"
+                    },
+                    "publicApiSurfaceCount": {
+                      "type": "number"
+                    },
+                    "rootsWithoutLocalTests": {
+                      "type": "number"
+                    },
+                    "rootsWithoutLocalDocs": {
+                      "type": "number"
+                    },
+                    "verificationMappedRootCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "rootCount",
+                    "languageCount",
+                    "generatedFileRatio",
+                    "largestRootShare",
+                    "publicApiSurfaceCount",
+                    "rootsWithoutLocalTests",
+                    "rootsWithoutLocalDocs",
+                    "verificationMappedRootCount"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "dependencyHints",
+                "testProximityHints",
+                "documentationProximityHints",
+                "generatedPressure",
+                "metrics"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "roots",
+            "boundaries",
+            "documentSurfaces",
+            "verificationSurfaces",
+            "topology"
+          ],
+          "additionalProperties": false
+        },
+        "designState": {
+          "type": "object",
+          "properties": {
+            "strengths": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "documentation-evidence",
+                      "architecture-boundary",
+                      "verification-locality",
+                      "context-selection",
+                      "generated-content",
+                      "safety",
+                      "agent-instruction",
+                      "ci-alignment"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warning",
+                      "error"
+                    ]
+                  },
+                  "gateable": {
+                    "type": "boolean"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "evidenceIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "findingIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "recommendation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "category",
+                  "title",
+                  "severity",
+                  "gateable",
+                  "summary",
+                  "evidenceIds",
+                  "paths",
+                  "confidence"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "risks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "documentation-evidence",
+                      "architecture-boundary",
+                      "verification-locality",
+                      "context-selection",
+                      "generated-content",
+                      "safety",
+                      "agent-instruction",
+                      "ci-alignment"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warning",
+                      "error"
+                    ]
+                  },
+                  "gateable": {
+                    "type": "boolean"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "evidenceIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "findingIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "recommendation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "category",
+                  "title",
+                  "severity",
+                  "gateable",
+                  "summary",
+                  "evidenceIds",
+                  "paths",
+                  "confidence"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "ambiguities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "documentation-evidence",
+                      "architecture-boundary",
+                      "verification-locality",
+                      "context-selection",
+                      "generated-content",
+                      "safety",
+                      "agent-instruction",
+                      "ci-alignment"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warning",
+                      "error"
+                    ]
+                  },
+                  "gateable": {
+                    "type": "boolean"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "evidenceIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "findingIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "recommendation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "category",
+                  "title",
+                  "severity",
+                  "gateable",
+                  "summary",
+                  "evidenceIds",
+                  "paths",
+                  "confidence"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "strengths",
+            "risks",
+            "ambiguities"
+          ],
+          "additionalProperties": false
+        },
+        "dimensions": {
+          "minItems": 6,
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "category": {
+                "type": "string",
+                "enum": [
+                  "docs",
+                  "commands",
+                  "ci",
+                  "instructions",
+                  "files",
+                  "safety"
+                ]
+              },
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "findingCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bySeverity": {
+                "type": "object",
+                "properties": {
+                  "info": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "warning": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "error": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "info",
+                  "warning",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "category",
+              "score",
+              "findingCount",
+              "bySeverity"
+            ],
+            "additionalProperties": false
+          },
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "docs"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "commands"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "ci"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "instructions"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "files"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "safety"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "autonomyEnvelope": {
+          "minItems": 8,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "orient",
+                  "bootstrap",
+                  "navigate",
+                  "edit",
+                  "verify",
+                  "review",
+                  "merge",
+                  "deploy"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "not_yet_ready",
+                  "blocked"
+                ]
+              },
+              "findingIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "stage",
+              "status",
+              "findingIds"
+            ],
+            "additionalProperties": false
+          },
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "orient"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "bootstrap"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "navigate"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "edit"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "verify"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "review"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "merge"
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "stage": {
+                    "const": "deploy"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "readinessProfile": {
+          "type": "object",
+          "properties": {
+            "readiness": {
+              "minItems": 8,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "stage": {
+                    "type": "string",
+                    "enum": [
+                      "orient",
+                      "bootstrap",
+                      "navigate",
+                      "edit",
+                      "verify",
+                      "review",
+                      "merge",
+                      "deploy"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ready",
+                      "not_yet_ready",
+                      "blocked"
+                    ]
+                  },
+                  "findingIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "stage",
+                  "status",
+                  "findingIds"
+                ],
+                "additionalProperties": false
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "orient"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "bootstrap"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "navigate"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "edit"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "verify"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "review"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "merge"
+                      }
+                    }
+                  }
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "stage": {
+                        "const": "deploy"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "risk": {
+              "type": "object",
+              "properties": {
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "unknown"
+                  ]
+                },
+                "confidence": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ]
+                },
+                "evidenceRefs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "explanation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "verdict",
+                "confidence",
+                "evidenceRefs",
+                "explanation"
+              ],
+              "additionalProperties": false
+            },
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "applicableSurfaces": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 7
+                },
+                "assessedSurfaces": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 7
+                },
+                "ratio": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "gaps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "surface": {
+                        "type": "string",
+                        "enum": [
+                          "instruction-surfaces",
+                          "command-ecosystems",
+                          "ci-workflows",
+                          "capability-surfaces",
+                          "governance",
+                          "documentation-roles",
+                          "repository-topology"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "surface",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "applicableSurfaces",
+                "assessedSurfaces",
+                "ratio",
+                "gaps"
+              ],
+              "additionalProperties": false,
+              "anyOf": [
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 0
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 1
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 1
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 2
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 2
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 0.5
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 2
+                    },
+                    "assessedSurfaces": {
+                      "const": 2
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 3
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 3
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 0.3333333333333333
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 3
+                    },
+                    "assessedSurfaces": {
+                      "const": 2
+                    },
+                    "ratio": {
+                      "const": 0.6666666666666666
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 3
+                    },
+                    "assessedSurfaces": {
+                      "const": 3
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 4
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 4
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 0.25
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 4
+                    },
+                    "assessedSurfaces": {
+                      "const": 2
+                    },
+                    "ratio": {
+                      "const": 0.5
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 4
+                    },
+                    "assessedSurfaces": {
+                      "const": 3
+                    },
+                    "ratio": {
+                      "const": 0.75
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 4
+                    },
+                    "assessedSurfaces": {
+                      "const": 4
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 5
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 5
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 0.2
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 5
+                    },
+                    "assessedSurfaces": {
+                      "const": 2
+                    },
+                    "ratio": {
+                      "const": 0.4
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 5
+                    },
+                    "assessedSurfaces": {
+                      "const": 3
+                    },
+                    "ratio": {
+                      "const": 0.6
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 5
+                    },
+                    "assessedSurfaces": {
+                      "const": 4
+                    },
+                    "ratio": {
+                      "const": 0.8
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 5
+                    },
+                    "assessedSurfaces": {
+                      "const": 5
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 0.16666666666666666
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 2
+                    },
+                    "ratio": {
+                      "const": 0.3333333333333333
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 3
+                    },
+                    "ratio": {
+                      "const": 0.5
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 4
+                    },
+                    "ratio": {
+                      "const": 0.6666666666666666
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 5
+                    },
+                    "ratio": {
+                      "const": 0.8333333333333334
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 6
+                    },
+                    "assessedSurfaces": {
+                      "const": 6
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 0
+                    },
+                    "ratio": {
+                      "const": 0
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 1
+                    },
+                    "ratio": {
+                      "const": 0.14285714285714285
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 2
+                    },
+                    "ratio": {
+                      "const": 0.2857142857142857
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 3
+                    },
+                    "ratio": {
+                      "const": 0.42857142857142855
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 4
+                    },
+                    "ratio": {
+                      "const": 0.5714285714285714
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 5
+                    },
+                    "ratio": {
+                      "const": 0.7142857142857143
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 6
+                    },
+                    "ratio": {
+                      "const": 0.8571428571428571
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "applicableSurfaces": {
+                      "const": 7
+                    },
+                    "assessedSurfaces": {
+                      "const": 7
+                    },
+                    "ratio": {
+                      "const": 1
+                    }
+                  }
+                }
+              ]
+            },
+            "observability": {
+              "type": "object",
+              "properties": {
+                "verifiedLocally": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "instruction-surfaces",
+                      "command-ecosystems",
+                      "ci-workflows",
+                      "capability-surfaces",
+                      "governance",
+                      "documentation-roles",
+                      "repository-topology"
+                    ]
+                  }
+                },
+                "notFound": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "instruction-surfaces",
+                      "command-ecosystems",
+                      "ci-workflows",
+                      "capability-surfaces",
+                      "governance",
+                      "documentation-roles",
+                      "repository-topology"
+                    ]
+                  }
+                },
+                "notObservableLocally": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "verifiedLocally",
+                "notFound",
+                "notObservableLocally"
+              ],
+              "additionalProperties": false
+            },
+            "calibrationConfidence": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          "required": [
+            "readiness",
+            "risk",
+            "coverage",
+            "observability",
+            "calibrationConfidence"
+          ],
+          "additionalProperties": false
+        },
+        "reportContract": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "string",
+              "const": "local-readiness/v2"
+            },
+            "experimentalFields": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "repositoryEvidence",
+                  "designState",
+                  "dimensions",
+                  "instructionContradictions",
+                  "hookExecutionRisks",
+                  "autonomyEnvelope",
+                  "readinessProfile"
+                ]
+              }
+            },
+            "experimentalFindingFields": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "confidence",
+                  "scope"
+                ]
+              }
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "experimentalFields"
+          ],
+          "additionalProperties": false
+        },
         "findings": {
           "type": "array",
           "items": {
@@ -455,6 +2814,23 @@
               "recommendation": {
                 "type": "string",
                 "minLength": 1
+              },
+              "confidence": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "root",
+                  "package",
+                  "path",
+                  "advisory"
+                ]
               }
             },
             "required": [
@@ -520,10 +2896,20 @@
         "summary",
         "docs",
         "commands",
+        "commandReferences",
+        "instructionContradictions",
+        "governance",
         "ci",
         "instructions",
         "capabilities",
         "safetySignals",
+        "hookExecutionRisks",
+        "repositoryEvidence",
+        "designState",
+        "dimensions",
+        "autonomyEnvelope",
+        "readinessProfile",
+        "reportContract",
         "findings",
         "files"
       ],
